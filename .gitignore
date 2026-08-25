@@ -47,3 +47,10 @@ A1priv/A1priv.ts
 
 # cairo build artifacts
 /cairo/target/
+
+# IDE / AI assistants
+.codex/
+.cursor/
+.serena/
+.idea/
+.vscode/
