@@ -1,38 +1,64 @@
-import type { Metadata } from 'next'
-import { Inter, Space_Mono } from 'next/font/google'
-import './globals.css'
+import type { Metadata } from "next";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Toaster } from "sonner";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { KeeprHydrate } from "@/components/keepr-hydrate";
+import "./globals.css";
 
-// Clean neutral grotesque for everything (matches the Uniswap reference); a mono
-// only for hex addresses / hashes.
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-body',
-  display: 'swap',
-})
-const spaceMono = Space_Mono({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-mono-ui',
-  display: 'swap',
-})
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: 'Shielded STRK · WalletAccountV6',
-  description: 'Shield, unshield and privately move STRK on Starknet with WalletAccountV6',
-}
+  title: "Keepr · Private Subscriptions on STRK20",
+  description:
+    "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
+  icons: {
+    icon: "/keepr.png",
+  },
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceMono.variable}`}
+      className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body className="flex min-h-screen flex-col">
+        <KeeprHydrate />
+        <SiteHeader />
+        <div className="flex-1">{children}</div>
+        <SiteFooter />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--color-raised2)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-line)",
+              borderRadius: "0px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.8125rem",
+            },
+          }}
+        />
+      </body>
     </html>
-  )
+  );
 }

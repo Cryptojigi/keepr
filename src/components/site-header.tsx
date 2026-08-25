@@ -1,0 +1,126 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
+import { KeeprWordmark } from "@/components/mark";
+import { Button } from "@/components/ui/button";
+import { WalletModal } from "@/components/wallet-modal";
+import { shortAddr } from "@/lib/keepr/format";
+import { useKeepr } from "@/lib/keepr/store";
+import { cn } from "@/lib/utils";
+
+const NAV = [
+  { href: "/subscribe", label: "Subscribe" },
+  { href: "/dashboard", label: "Vault" },
+  { href: "/creator", label: "Creator" },
+  { href: "/verify", label: "Verify" },
+] as const;
+
+export function SiteHeader() {
+  const pathname = usePathname();
+  const connected = useKeepr((s) => s.connected);
+  const address = useKeepr((s) => s.address);
+  const disconnect = useKeepr((s) => s.disconnect);
+  const [menu, setMenu] = useState(false);
+  const [wallet, setWallet] = useState(false);
+
+  return (
+    <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-5">
+        <Link href="/" className="shrink-0" onClick={() => setMenu(false)}>
+          <KeeprWordmark />
+        </Link>
+        <nav className="ml-4 hidden items-center gap-1 md:flex">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "px-2 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors duration-150",
+                pathname === item.href
+                  ? "text-accent"
+                  : "text-muted hover:text-ink",
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-2">
+          {connected ? (
+            <button
+              type="button"
+              onClick={() => disconnect()}
+              className="hidden h-11 items-center px-3 font-mono text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted sm:inline-flex"
+              title="Disconnect demo vault"
+            >
+              {shortAddr(address)}
+            </button>
+          ) : (
+            <Button
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => setWallet(true)}
+            >
+              Connect
+            </Button>
+          )}
+          <button
+            type="button"
+            className="inline-flex size-11 items-center justify-center text-ink md:hidden"
+            onClick={() => setMenu((v) => !v)}
+            aria-expanded={menu}
+            aria-label={menu ? "Close menu" : "Open menu"}
+          >
+            {menu ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
+      </div>
+      {menu ? (
+        <div className="border-t border-line bg-raised md:hidden">
+          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-2">
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenu(false)}
+                className={cn(
+                  "flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em]",
+                  pathname === item.href ? "text-accent" : "text-ink",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {connected ? (
+              <button
+                type="button"
+                className="flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em] text-ink"
+                onClick={() => {
+                  disconnect();
+                  setMenu(false);
+                }}
+              >
+                Disconnect {shortAddr(address)}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em] text-accent"
+                onClick={() => {
+                  setMenu(false);
+                  setWallet(true);
+                }}
+              >
+                Connect
+              </button>
+            )}
+          </nav>
+        </div>
+      ) : null}
+      <WalletModal open={wallet} onOpenChange={setWallet} />
+    </header>
+  );
+}
