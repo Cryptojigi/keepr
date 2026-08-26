@@ -25,7 +25,13 @@ export const metadata: Metadata = {
   description:
     "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
   icons: {
-    icon: "/keepr.png",
+    icon: "/favicon.svg",
+  },
+  openGraph: {
+    title: "Keepr · Private Subscriptions on STRK20",
+    description:
+      "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
+    images: ["/og.jpg"],
   },
 };
 

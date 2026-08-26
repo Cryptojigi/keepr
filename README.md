@@ -1,7 +1,7 @@
 # Keepr — Private Subscription Payments on STRK20
 
 <p align="center">
-  <img src="public/keepr.png" alt="Keepr Logo" width="180" />
+  <img src="public/favicon.svg" alt="Keepr Logo" width="96" />
 </p>
 
 > **Private subscription payments for AI agents and digital creators on STRK20** — shield, subscribe, auto-renew via keepers, and prove tier access with STARK proofs without wallet scanning.
