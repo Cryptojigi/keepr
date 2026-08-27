@@ -42,7 +42,7 @@ function Hero() {
         <div className="flex flex-col justify-center">
           <Kicker>Protocol · {NETWORK_LABEL}</Kicker>
           <div className="mt-6 flex items-start gap-4">
-            <KeeprMark className="mt-2 hidden size-10 text-accent sm:block" />
+            <KeeprMark size={40} className="mt-2 hidden sm:block" />
             <h1 className="font-display text-6xl font-bold uppercase leading-[0.9] tracking-tight text-ink sm:text-7xl md:text-8xl">
               Keepr
             </h1>

@@ -17,8 +17,8 @@ export function HeroStatus() {
   }, []);
 
   return (
-    <aside className="bg-cream text-ink shadow-[var(--shadow-border)]">
-      <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
+    <aside className="bg-base text-ink border border-line shadow-[var(--shadow-border)]">
+      <header className="flex items-center justify-between border-b border-line bg-raised px-4 py-2.5">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-accent">
           {NETWORK_LABEL}
         </p>
