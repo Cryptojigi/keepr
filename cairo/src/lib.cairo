@@ -80,6 +80,7 @@ pub mod KeeprSubscriptionHelper {
         pub const AMOUNT_OVERFLOW: felt252 = 'AMOUNT_OVERFLOW';
         pub const ALREADY_ACTIVE: felt252 = 'ALREADY_ACTIVE';
         pub const UNAUTHORIZED: felt252 = 'UNAUTHORIZED';
+        pub const AUTH_COMMIT_ZERO: felt252 = 'AUTH_COMMIT_ZERO';
     }
 
     #[storage]
@@ -152,6 +153,7 @@ pub mod KeeprSubscriptionHelper {
             if op == OP_SUBSCRIBE {
                 assert(amount > 0, errors::INVALID_AMOUNT);
                 assert(period > 0, errors::INVALID_PERIOD);
+                assert(auth_commit != 0, errors::AUTH_COMMIT_ZERO);
 
                 let balance_u256: u256 = erc20.balance_of(get_contract_address());
                 let actual_amount: u128 = balance_u256.try_into().expect(errors::AMOUNT_OVERFLOW);
@@ -239,6 +241,7 @@ pub mod KeeprSubscriptionHelper {
         ) -> Span<OpenNoteDeposit> {
             assert(amount > 0, errors::INVALID_AMOUNT);
             assert(period > 0, errors::INVALID_PERIOD);
+            assert(auth_commit != 0, errors::AUTH_COMMIT_ZERO);
 
             let existing = self.subscriptions.entry(sub_id).read();
             assert(!existing.active, errors::ALREADY_ACTIVE);
@@ -647,6 +650,17 @@ mod tests {
         let creator = 0x3333.try_into().unwrap();
         KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
             ref state, token, 0x555, creator, 1, 50_000, 50_000, 0, 0x888, 0x123, 1000,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: ('AUTH_COMMIT_ZERO',))]
+    fn test_subscribe_zero_auth_commit_panics() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let token = 0x2222.try_into().unwrap();
+        let creator = 0x3333.try_into().unwrap();
+        KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
+            ref state, token, 0x555, creator, 1, 50_000, 50_000, 2592000, 0x888, 0, 1000,
         );
     }
 
