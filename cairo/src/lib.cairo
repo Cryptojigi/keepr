@@ -17,6 +17,7 @@ pub struct SubscriptionRecord {
     pub last_renewed: u64,
     pub active: bool,
     pub creator_note_id: felt252,
+    pub auth_commit: felt252,
 }
 
 #[starknet::interface]
@@ -28,6 +29,11 @@ pub trait IErc20<TState> {
 #[starknet::interface]
 pub trait IKeeprSubscriptionHelper<TState> {
     // Called by the privacy pool via selector!("privacy_invoke").
+    // Client computes sub_id = h(wallet, salt) and auth_commit = h(cancel_secret) locally;
+    // wallet, salt, and cancel_secret are never sent or stored on-chain.
+    // Subscribe uses auth_commit (auth_preimage = 0).
+    // Cancel uses auth_preimage (auth_commit = 0).
+    // Renew ignores both.
     fn privacy_invoke(
         ref self: TState,
         token: ContractAddress,
@@ -39,6 +45,8 @@ pub trait IKeeprSubscriptionHelper<TState> {
         amount: u128,
         period: u64,
         creator_note_id: felt252,
+        auth_commit: felt252,
+        auth_preimage: felt252,
     ) -> Span<OpenNoteDeposit>;
 
     fn get_subscription(self: @TState, sub_id: felt252) -> SubscriptionRecord;
@@ -48,6 +56,7 @@ pub trait IKeeprSubscriptionHelper<TState> {
 
 #[starknet::contract]
 pub mod KeeprSubscriptionHelper {
+    use core::poseidon::poseidon_hash_span;
     use starknet::storage::{
         StoragePointerReadAccess, StoragePointerWriteAccess, StoragePathEntry, Map,
     };
@@ -69,6 +78,8 @@ pub mod KeeprSubscriptionHelper {
         pub const SUB_ID_ZERO: felt252 = 'SUB_ID_ZERO';
         pub const NO_INPUT: felt252 = 'NO_INPUT';
         pub const AMOUNT_OVERFLOW: felt252 = 'AMOUNT_OVERFLOW';
+        pub const ALREADY_ACTIVE: felt252 = 'ALREADY_ACTIVE';
+        pub const UNAUTHORIZED: felt252 = 'UNAUTHORIZED';
     }
 
     #[storage]
@@ -128,6 +139,8 @@ pub mod KeeprSubscriptionHelper {
             amount: u128,
             period: u64,
             creator_note_id: felt252,
+            auth_commit: felt252,
+            auth_preimage: felt252,
         ) -> Span<OpenNoteDeposit> {
             let caller = get_caller_address();
             assert(pool_address == caller, errors::BAD_POOL);
@@ -140,15 +153,25 @@ pub mod KeeprSubscriptionHelper {
                 assert(amount > 0, errors::INVALID_AMOUNT);
                 assert(period > 0, errors::INVALID_PERIOD);
 
-                let balance: u256 = erc20.balance_of(get_contract_address());
-                let actual_amount: u128 = balance.try_into().expect(errors::AMOUNT_OVERFLOW);
+                let balance_u256: u256 = erc20.balance_of(get_contract_address());
+                let actual_amount: u128 = balance_u256.try_into().expect(errors::AMOUNT_OVERFLOW);
                 assert(actual_amount >= amount, errors::NO_INPUT);
 
-                // Approve the privacy pool to pull the subscription amount for creator deposit
-                erc20.approve(pool_address, amount.into());
+                // Approve pool for full measured balance to sweep any dust
+                erc20.approve(pool_address, actual_amount.into());
 
                 InternalImpl::execute_subscribe(
-                    ref self, token, sub_id, creator, tier, amount, period, creator_note_id, now,
+                    ref self,
+                    token,
+                    sub_id,
+                    creator,
+                    tier,
+                    amount,
+                    actual_amount,
+                    period,
+                    creator_note_id,
+                    auth_commit,
+                    now,
                 )
             } else if op == OP_RENEW {
                 let record = self.subscriptions.entry(sub_id).read();
@@ -156,15 +179,26 @@ pub mod KeeprSubscriptionHelper {
                 assert(now >= record.last_renewed + record.period, errors::PERIOD_NOT_ELAPSED);
                 assert(record.amount == amount, errors::AMOUNT_MISMATCH);
 
-                let balance: u256 = erc20.balance_of(get_contract_address());
-                let actual_amount: u128 = balance.try_into().expect(errors::AMOUNT_OVERFLOW);
+                let balance_u256: u256 = erc20.balance_of(get_contract_address());
+                let actual_amount: u128 = balance_u256.try_into().expect(errors::AMOUNT_OVERFLOW);
                 assert(actual_amount >= amount, errors::NO_INPUT);
 
-                erc20.approve(pool_address, amount.into());
+                erc20.approve(pool_address, actual_amount.into());
 
-                InternalImpl::execute_renew(ref self, token, sub_id, amount, now)
+                InternalImpl::execute_renew(
+                    ref self, token, sub_id, amount, actual_amount, now,
+                )
             } else if op == OP_CANCEL {
-                InternalImpl::execute_cancel(ref self, sub_id, now)
+                let balance_u256: u256 = erc20.balance_of(get_contract_address());
+                if balance_u256 > 0 {
+                    let dust_amount: u128 = balance_u256.try_into().expect(errors::AMOUNT_OVERFLOW);
+                    erc20.approve(pool_address, balance_u256);
+                    InternalImpl::execute_cancel_with_dust(
+                        ref self, token, sub_id, auth_preimage, dust_amount, now,
+                    )
+                } else {
+                    InternalImpl::execute_cancel(ref self, sub_id, auth_preimage, now)
+                }
             } else {
                 core::panic_with_felt252(errors::INVALID_OP)
             }
@@ -197,12 +231,17 @@ pub mod KeeprSubscriptionHelper {
             creator: ContractAddress,
             tier: u8,
             amount: u128,
+            actual_amount: u128,
             period: u64,
             creator_note_id: felt252,
+            auth_commit: felt252,
             now: u64,
         ) -> Span<OpenNoteDeposit> {
             assert(amount > 0, errors::INVALID_AMOUNT);
             assert(period > 0, errors::INVALID_PERIOD);
+
+            let existing = self.subscriptions.entry(sub_id).read();
+            assert(!existing.active, errors::ALREADY_ACTIVE);
 
             let record = SubscriptionRecord {
                 creator,
@@ -212,6 +251,7 @@ pub mod KeeprSubscriptionHelper {
                 last_renewed: now,
                 active: true,
                 creator_note_id,
+                auth_commit,
             };
             self.subscriptions.entry(sub_id).write(record);
             self.invoke_count.write(self.invoke_count.read() + 1);
@@ -225,7 +265,7 @@ pub mod KeeprSubscriptionHelper {
                 creator_note_id,
             });
 
-            array![OpenNoteDeposit { note_id: creator_note_id, token, amount }].span()
+            array![OpenNoteDeposit { note_id: creator_note_id, token, amount: actual_amount }].span()
         }
 
         fn execute_renew(
@@ -233,6 +273,7 @@ pub mod KeeprSubscriptionHelper {
             token: ContractAddress,
             sub_id: felt252,
             amount: u128,
+            actual_amount: u128,
             now: u64,
         ) -> Span<OpenNoteDeposit> {
             let mut record = self.subscriptions.entry(sub_id).read();
@@ -252,16 +293,20 @@ pub mod KeeprSubscriptionHelper {
                 renewed_at: now,
             });
 
-            array![OpenNoteDeposit { note_id: record.creator_note_id, token, amount }].span()
+            array![OpenNoteDeposit { note_id: record.creator_note_id, token, amount: actual_amount }].span()
         }
 
         fn execute_cancel(
             ref self: ContractState,
             sub_id: felt252,
+            auth_preimage: felt252,
             now: u64,
         ) -> Span<OpenNoteDeposit> {
             let mut record = self.subscriptions.entry(sub_id).read();
             assert(record.active, errors::SUB_NOT_ACTIVE);
+
+            let computed_commit = poseidon_hash_span(array![auth_preimage].span());
+            assert(computed_commit == record.auth_commit, errors::UNAUTHORIZED);
 
             record.active = false;
             self.subscriptions.entry(sub_id).write(record);
@@ -278,6 +323,34 @@ pub mod KeeprSubscriptionHelper {
             array![].span()
         }
 
+        fn execute_cancel_with_dust(
+            ref self: ContractState,
+            token: ContractAddress,
+            sub_id: felt252,
+            auth_preimage: felt252,
+            dust_amount: u128,
+            now: u64,
+        ) -> Span<OpenNoteDeposit> {
+            let mut record = self.subscriptions.entry(sub_id).read();
+            assert(record.active, errors::SUB_NOT_ACTIVE);
+
+            let computed_commit = poseidon_hash_span(array![auth_preimage].span());
+            assert(computed_commit == record.auth_commit, errors::UNAUTHORIZED);
+
+            record.active = false;
+            self.subscriptions.entry(sub_id).write(record);
+            self.invoke_count.write(self.invoke_count.read() + 1);
+
+            self.emit(Cancelled {
+                sub_id,
+                creator: record.creator,
+                tier: record.tier,
+                cancelled_at: now,
+            });
+
+            array![OpenNoteDeposit { note_id: record.creator_note_id, token, amount: dust_amount }].span()
+        }
+
         fn set_subscription_for_testing(
             ref self: ContractState,
             sub_id: felt252,
@@ -290,6 +363,7 @@ pub mod KeeprSubscriptionHelper {
 
 #[cfg(test)]
 mod tests {
+    use core::poseidon::poseidon_hash_span;
     use super::{
         KeeprSubscriptionHelper, IKeeprSubscriptionHelper, OpenNoteDeposit, SubscriptionRecord,
     };
@@ -307,6 +381,7 @@ mod tests {
             last_renewed: 1700000000,
             active: true,
             creator_note_id: 0x999,
+            auth_commit: 0x444,
         };
 
         assert(sub.creator == creator, 'creator mismatch');
@@ -316,6 +391,7 @@ mod tests {
         assert(sub.last_renewed == 1700000000, 'last_renewed mismatch');
         assert(sub.active == true, 'active mismatch');
         assert(sub.creator_note_id == 0x999, 'note_id mismatch');
+        assert(sub.auth_commit == 0x444, 'auth_commit mismatch');
     }
 
     #[test]
@@ -369,6 +445,7 @@ mod tests {
                 last_renewed: 1000,
                 active: true,
                 creator_note_id: 0x111,
+                auth_commit: 0x123,
             },
         );
 
@@ -396,6 +473,7 @@ mod tests {
                 last_renewed: 1000,
                 active: false,
                 creator_note_id: 0x111,
+                auth_commit: 0x123,
             },
         );
         set_block_timestamp(1500);
@@ -410,8 +488,11 @@ mod tests {
         let sub_id = 0x555;
         let creator_note_id = 0x888;
         let amount = 50_000_000_000_000_000_000_u128; // 50 STRK
+        let actual_amount = 50_000_000_000_000_000_000_u128;
         let period = 2592000_u64; // 30 days
         let now = 1700000000_u64;
+        let cancel_secret = 0x987654321;
+        let auth_commit = poseidon_hash_span(array![cancel_secret].span());
 
         set_block_timestamp(now);
 
@@ -422,8 +503,10 @@ mod tests {
             creator,
             2,
             amount,
+            actual_amount,
             period,
             creator_note_id,
+            auth_commit,
             now,
         );
 
@@ -432,7 +515,7 @@ mod tests {
         let dep = *deposits.at(0);
         assert(dep.note_id == creator_note_id, 'deposit note_id mismatch');
         assert(dep.token == token, 'deposit token mismatch');
-        assert(dep.amount == amount, 'deposit amount mismatch');
+        assert(dep.amount == actual_amount, 'deposit amount mismatch');
 
         // Verify storage state
         assert(state.get_invoke_count() == 1, 'invoke_count should be 1');
@@ -446,6 +529,103 @@ mod tests {
         assert(record.last_renewed == now, 'last_renewed mismatch');
         assert(record.active == true, 'active mismatch');
         assert(record.creator_note_id == creator_note_id, 'creator_note_id mismatch');
+        assert(record.auth_commit == auth_commit, 'auth_commit mismatch');
+    }
+
+    #[test]
+    fn test_subscribe_sweeps_dust() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let token = 0x2222.try_into().unwrap();
+        let creator = 0x3333.try_into().unwrap();
+        let sub_id = 0x555;
+        let creator_note_id = 0x888;
+        let amount = 50_000_000_000_000_000_000_u128; // 50 STRK required
+        let actual_amount = 50_000_000_000_000_000_500_u128; // 500 wei extra dust
+        let period = 2592000_u64;
+        let now = 1700000000_u64;
+        let auth_commit = 0x1234;
+
+        let deposits = KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
+            ref state,
+            token,
+            sub_id,
+            creator,
+            1,
+            amount,
+            actual_amount,
+            period,
+            creator_note_id,
+            auth_commit,
+            now,
+        );
+
+        let dep = *deposits.at(0);
+        assert(dep.amount == actual_amount, 'should sweep full balance');
+    }
+
+    #[test]
+    #[should_panic(expected: ('ALREADY_ACTIVE',))]
+    fn test_subscribe_already_active_panics() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let token = 0x2222.try_into().unwrap();
+        let creator = 0x3333.try_into().unwrap();
+        let sub_id = 0x555;
+
+        // Seed existing active subscription
+        KeeprSubscriptionHelper::InternalImpl::set_subscription_for_testing(
+            ref state,
+            sub_id,
+            SubscriptionRecord {
+                creator,
+                tier: 1,
+                amount: 100,
+                period: 1000,
+                last_renewed: 1000,
+                active: true,
+                creator_note_id: 0x888,
+                auth_commit: 0x111,
+            },
+        );
+
+        // Attempting to subscribe to an already active sub_id must panic
+        KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
+            ref state, token, sub_id, creator, 1, 100, 100, 1000, 0x999, 0x222, 1200,
+        );
+    }
+
+    #[test]
+    fn test_resubscribe_after_cancel_succeeds() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let token = 0x2222.try_into().unwrap();
+        let creator = 0x3333.try_into().unwrap();
+        let sub_id = 0x555;
+        let old_secret = 0x1111;
+        let old_commit = poseidon_hash_span(array![old_secret].span());
+
+        // 1. Initial Subscribe
+        KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
+            ref state, token, sub_id, creator, 1, 100, 100, 1000, 0x888, old_commit, 1000,
+        );
+        assert(state.is_active(sub_id) == true, 'should be active');
+
+        // 2. Cancel
+        KeeprSubscriptionHelper::InternalImpl::execute_cancel(
+            ref state, sub_id, old_secret, 1500,
+        );
+        assert(state.is_active(sub_id) == false, 'should be cancelled');
+
+        // 3. Re-subscribe with new secret
+        let new_secret = 0x2222;
+        let new_commit = poseidon_hash_span(array![new_secret].span());
+        KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
+            ref state, token, sub_id, creator, 2, 200, 200, 2000, 0x999, new_commit, 2000,
+        );
+
+        assert(state.is_active(sub_id) == true, 'should be active again');
+        let record = state.get_subscription(sub_id);
+        assert(record.auth_commit == new_commit, 'new auth_commit set');
+        assert(record.tier == 2, 'new tier set');
+        assert(record.amount == 200, 'new amount set');
     }
 
     #[test]
@@ -455,7 +635,7 @@ mod tests {
         let token = 0x2222.try_into().unwrap();
         let creator = 0x3333.try_into().unwrap();
         KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
-            ref state, token, 0x555, creator, 1, 0, 2592000, 0x888, 1000,
+            ref state, token, 0x555, creator, 1, 0, 0, 2592000, 0x888, 0x123, 1000,
         );
     }
 
@@ -466,7 +646,7 @@ mod tests {
         let token = 0x2222.try_into().unwrap();
         let creator = 0x3333.try_into().unwrap();
         KeeprSubscriptionHelper::InternalImpl::execute_subscribe(
-            ref state, token, 0x555, creator, 1, 50_000, 0, 0x888, 1000,
+            ref state, token, 0x555, creator, 1, 50_000, 50_000, 0, 0x888, 0x123, 1000,
         );
     }
 
@@ -478,6 +658,7 @@ mod tests {
         let sub_id = 0x555;
         let creator_note_id = 0x888;
         let amount = 50_000_000_000_000_000_000_u128;
+        let actual_amount = 50_000_000_000_000_000_000_u128;
         let period = 2592000_u64;
 
         // Seed initial subscription renewed at t = 1000
@@ -492,6 +673,7 @@ mod tests {
                 last_renewed: 1000,
                 active: true,
                 creator_note_id,
+                auth_commit: 0x123,
             },
         );
 
@@ -500,7 +682,7 @@ mod tests {
         set_block_timestamp(renew_time);
 
         let deposits = KeeprSubscriptionHelper::InternalImpl::execute_renew(
-            ref state, token, sub_id, amount, renew_time,
+            ref state, token, sub_id, amount, actual_amount, renew_time,
         );
 
         // Verify returned open note deposit
@@ -508,7 +690,7 @@ mod tests {
         let dep = *deposits.at(0);
         assert(dep.note_id == creator_note_id, 'deposit note_id mismatch');
         assert(dep.token == token, 'deposit token mismatch');
-        assert(dep.amount == amount, 'deposit amount mismatch');
+        assert(dep.amount == actual_amount, 'deposit amount mismatch');
 
         // Verify storage state
         assert(state.get_invoke_count() == 1, 'invoke_count should be 1');
@@ -539,12 +721,13 @@ mod tests {
                 last_renewed: 1000,
                 active: true,
                 creator_note_id: 0x888,
+                auth_commit: 0x123,
             },
         );
 
         // Attempt renew with wrong amount (50 instead of 100)
         KeeprSubscriptionHelper::InternalImpl::execute_renew(
-            ref state, token, sub_id, 50, 2500,
+            ref state, token, sub_id, 50, 50, 2500,
         );
     }
 
@@ -567,12 +750,13 @@ mod tests {
                 last_renewed: 1000,
                 active: true,
                 creator_note_id: 0x888,
+                auth_commit: 0x123,
             },
         );
 
         // Attempt renew before period elapsed (now = 1500 < 1000 + 1000)
         KeeprSubscriptionHelper::InternalImpl::execute_renew(
-            ref state, token, sub_id, 100, 1500,
+            ref state, token, sub_id, 100, 100, 1500,
         );
     }
 
@@ -595,23 +779,24 @@ mod tests {
                 last_renewed: 1000,
                 active: false,
                 creator_note_id: 0x888,
+                auth_commit: 0x123,
             },
         );
 
         KeeprSubscriptionHelper::InternalImpl::execute_renew(
-            ref state, token, sub_id, 100, 2500,
+            ref state, token, sub_id, 100, 100, 2500,
         );
     }
 
     #[test]
-    fn test_cancel_flow() {
+    fn test_cancel_with_valid_preimage_succeeds() {
         let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
-        let pool = 0x1111.try_into().unwrap();
-        let token = 0x2222.try_into().unwrap();
         let creator = 0x3333.try_into().unwrap();
         let sub_id = 0x555;
+        let cancel_secret = 0xdeadbeef_felt252;
+        let auth_commit = poseidon_hash_span(array![cancel_secret].span());
 
-        // Seed an active subscription in storage
+        // Seed an active subscription with auth_commit in storage
         KeeprSubscriptionHelper::InternalImpl::set_subscription_for_testing(
             ref state,
             sub_id,
@@ -623,25 +808,19 @@ mod tests {
                 last_renewed: 1000,
                 active: true,
                 creator_note_id: 0x888,
+                auth_commit,
             },
         );
 
         set_block_timestamp(1500);
         assert(state.is_active(sub_id) == true, 'should be active');
 
-        // Execute Cancel operation (op = 2)
-        set_caller_address(pool);
-
-        let deposits = state.privacy_invoke(
-            token,
-            pool,
-            KeeprSubscriptionHelper::OP_CANCEL,
+        // Cancel with correct preimage
+        let deposits = KeeprSubscriptionHelper::InternalImpl::execute_cancel(
+            ref state,
             sub_id,
-            creator,
-            2,
-            0,
-            0,
-            0,
+            cancel_secret,
+            1500,
         );
 
         assert(deposits.len() == 0, 'cancel should return 0 deposit');
@@ -654,25 +833,109 @@ mod tests {
     }
 
     #[test]
+    fn test_cancel_with_dust_returns_deposit_to_creator() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let token = 0x2222.try_into().unwrap();
+        let creator = 0x3333.try_into().unwrap();
+        let sub_id = 0x555;
+        let creator_note_id = 0x888;
+        let cancel_secret = 0xdeadbeef_felt252;
+        let auth_commit = poseidon_hash_span(array![cancel_secret].span());
+        let dust_amount = 777_u128;
+
+        KeeprSubscriptionHelper::InternalImpl::set_subscription_for_testing(
+            ref state,
+            sub_id,
+            SubscriptionRecord {
+                creator,
+                tier: 2,
+                amount: 50_000_000_000_000_000_000,
+                period: 2592000,
+                last_renewed: 1000,
+                active: true,
+                creator_note_id,
+                auth_commit,
+            },
+        );
+
+        let deposits = KeeprSubscriptionHelper::InternalImpl::execute_cancel_with_dust(
+            ref state,
+            token,
+            sub_id,
+            cancel_secret,
+            dust_amount,
+            1500,
+        );
+
+        assert(deposits.len() == 1, 'should return 1 dust deposit');
+        let dep = *deposits.at(0);
+        assert(dep.note_id == creator_note_id, 'note_id mismatch');
+        assert(dep.token == token, 'token mismatch');
+        assert(dep.amount == dust_amount, 'amount mismatch');
+        assert(state.is_active(sub_id) == false, 'should be cancelled');
+    }
+
+    #[test]
+    #[should_panic(expected: ('UNAUTHORIZED',))]
+    fn test_cancel_with_wrong_preimage_panics() {
+        let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
+        let creator = 0x3333.try_into().unwrap();
+        let sub_id = 0x555;
+        let real_secret = 0x123456;
+        let wrong_secret = 0x999999;
+        let auth_commit = poseidon_hash_span(array![real_secret].span());
+
+        KeeprSubscriptionHelper::InternalImpl::set_subscription_for_testing(
+            ref state,
+            sub_id,
+            SubscriptionRecord {
+                creator,
+                tier: 2,
+                amount: 50_000,
+                period: 2592000,
+                last_renewed: 1000,
+                active: true,
+                creator_note_id: 0x888,
+                auth_commit,
+            },
+        );
+
+        // Cancel with wrong preimage must panic UNAUTHORIZED
+        KeeprSubscriptionHelper::InternalImpl::execute_cancel(
+            ref state,
+            sub_id,
+            wrong_secret,
+            1500,
+        );
+    }
+
+    #[test]
     #[should_panic(expected: ('SUB_NOT_ACTIVE',))]
     fn test_cancel_inactive_panics() {
         let mut state = KeeprSubscriptionHelper::contract_state_for_testing();
-        let pool = 0x1111.try_into().unwrap();
-        let token = 0x2222.try_into().unwrap();
         let creator = 0x3333.try_into().unwrap();
         let sub_id = 0x999;
 
-        set_caller_address(pool);
-        state.privacy_invoke(
-            token,
-            pool,
-            KeeprSubscriptionHelper::OP_CANCEL,
+        KeeprSubscriptionHelper::InternalImpl::set_subscription_for_testing(
+            ref state,
             sub_id,
-            creator,
-            0,
-            0,
-            0,
-            0,
+            SubscriptionRecord {
+                creator,
+                tier: 1,
+                amount: 100,
+                period: 1000,
+                last_renewed: 1000,
+                active: false,
+                creator_note_id: 0x888,
+                auth_commit: 0x123,
+            },
+        );
+
+        KeeprSubscriptionHelper::InternalImpl::execute_cancel(
+            ref state,
+            sub_id,
+            0x123,
+            1500,
         );
     }
 
@@ -693,6 +956,8 @@ mod tests {
             0x555,
             creator,
             1,
+            0,
+            0,
             0,
             0,
             0,
@@ -718,6 +983,8 @@ mod tests {
             0,
             0,
             0,
+            0,
+            0,
         );
     }
 
@@ -737,6 +1004,8 @@ mod tests {
             0x555,
             creator,
             1,
+            0,
+            0,
             0,
             0,
             0,

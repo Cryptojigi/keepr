@@ -6,9 +6,8 @@ export const STRK_TOKEN =
 /** STRK20 privacy pool (mainnet). Truncated in UI until the helper is live. */
 export const STRK20_POOL = "0x0403…812a";
 
-/** Echo helper currently on mainnet — subscription helper replaces this. */
-export const HELPER_MAINNET =
-  "0x078ae662e0cc6d1ab2cfeaf2a51ba8783d88e31886f88a794d142f95a6f8735b";
+/** Helper address on mainnet — set after KeeprSubscriptionHelper deployment. */
+export const HELPER_MAINNET = "";
 
 export const DEMO_ADDRESS =
   "0x04e1a91c7b3d8f2a6c90e5d4b1f8a7c3e2d9b0a6f4c8e1d7a3b5c9e0f2d4a6b8";
