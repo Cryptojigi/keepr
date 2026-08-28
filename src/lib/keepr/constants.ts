@@ -3,8 +3,9 @@ export const APP_NAME = "Keepr";
 export const STRK_TOKEN =
   "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 
-/** STRK20 privacy pool (mainnet). Truncated in UI until the helper is live. */
-export const STRK20_POOL = "0x0403…812a";
+/** STRK20 privacy pool (mainnet). */
+export const STRK20_POOL =
+  "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a";
 
 /** Helper address on mainnet — KeeprSubscriptionHelper (deployed 2026-08-28). */
 export const HELPER_MAINNET =
