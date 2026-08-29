@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import {
   walletV6,
@@ -21,6 +21,36 @@ import { useFrontendProvider } from "../provider/providerContext";
 function normalizeId(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
+
+// Supported Starknet wallets for mobile guidance
+// Note: WalletConnect integration scheduled for v2
+const SUPPORTED_WALLETS = [
+  {
+    name: "Ready Wallet",
+    url: "https://www.ready.co/",
+    tag: "STRK20 Shielded",
+  },
+  {
+    name: "Argent X",
+    url: "https://www.argent.xyz/argent-x/",
+    tag: "Mobile & Browser",
+  },
+  {
+    name: "Braavos",
+    url: "https://braavos.app/",
+    tag: "Hardware Signer",
+  },
+  {
+    name: "OKX Wallet",
+    url: "https://www.okx.com/web3",
+    tag: "Multi-Chain",
+  },
+  {
+    name: "Xverse",
+    url: "https://www.xverse.app/",
+    tag: "Bitcoin & Starknet",
+  },
+];
 
 export default function SelectWallet({
   variant = "ctaBig",
@@ -52,6 +82,7 @@ export default function SelectWallet({
   const [error, setError] = useState<string>("");
   const [internalPickerOpen, setInternalPickerOpen] = useState(false);
   const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
 
   const pickerOpen = externalOpen !== undefined ? externalOpen : internalPickerOpen;
   const setPickerOpen = (open: boolean) => {
@@ -63,16 +94,27 @@ export default function SelectWallet({
   };
 
   useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+      setIsMobile(mobileRegex.test(userAgent) || window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
     const store: Store = createStore({ eip1193Adapters: [] });
     setWallets(store.getWallets().slice());
     const unsub = store.subscribe((next) => setWallets(next.slice()));
     return () => unsub();
   }, []);
 
-  // Filter pickable wallets (exclude metamask spam and braavos)
+  // Filter pickable wallets (exclude metamask snap probing only; Braavos included)
   const pickable = wallets.filter((w) => {
     const id = normalizeId(w.name);
-    return !id.includes("metamask") && !id.includes("braavos");
+    return !id.includes("metamask");
   });
 
   async function handleSelectedWallet(selectedWallet: WalletWithStarknetFeatures) {
@@ -104,7 +146,7 @@ export default function SelectWallet({
       setCurrentFrontendProviderIndex(
         chainId === SNconstants.StarknetChainId.SN_MAIN ? 0 : 2,
       );
-      toast.success("Ready wallet connected on Starknet Mainnet!");
+      toast.success(`${selectedWallet.name} connected on Starknet Mainnet!`);
     }
     setWalletApi(await walletV6.supportedSpecs(selectedWallet));
   }
@@ -154,7 +196,7 @@ export default function SelectWallet({
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-md border border-line bg-cream p-6 shadow-[var(--shadow-border-hover)]"
+        className="relative w-full max-w-md border border-line bg-cream p-6 shadow-[var(--shadow-border-hover)] max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -174,7 +216,7 @@ export default function SelectWallet({
             Connect Wallet
           </h2>
           <p className="mt-2 font-mono text-xs text-muted leading-relaxed">
-            Connect Ready or your Starknet wallet for shielded subscriptions and zero-knowledge gates on Mainnet.
+            Connect Ready, Braavos, or your Starknet wallet for shielded subscriptions and zero-knowledge gates on Mainnet.
           </p>
         </div>
 
@@ -184,6 +226,7 @@ export default function SelectWallet({
           </div>
         ) : null}
 
+        {/* 1. Detected In-Browser Wallets */}
         <div className="mt-6 flex flex-col gap-2.5">
           {pickable.length > 0 ? (
             pickable.map((w) => (
@@ -212,7 +255,7 @@ export default function SelectWallet({
                     <p className="font-mono text-[10px] text-muted uppercase tracking-wider">
                       {w.name.toLowerCase().includes("ready")
                         ? "STRK20 Privacy Enabled"
-                        : "Starknet Standard"}
+                        : "Detected Extension"}
                     </p>
                   </div>
                 </div>
@@ -221,10 +264,10 @@ export default function SelectWallet({
                 </span>
               </button>
             ))
-          ) : (
+          ) : !isMobile ? (
             <div className="border border-dashed border-line bg-raised/50 p-4 text-center">
               <p className="font-mono text-xs text-muted">
-                No Starknet wallet extension detected.
+                No Starknet wallet extension detected in this browser.
               </p>
               <a
                 href={READY_URL}
@@ -235,9 +278,42 @@ export default function SelectWallet({
                 Install Ready Wallet <ExternalLink className="size-3" />
               </a>
             </div>
-          )}
+          ) : null}
         </div>
 
+        {/* 2. Mobile Guidance & Supported Wallets */}
+        {isMobile && pickable.length === 0 ? (
+          <div className="mt-4 border border-line bg-raised p-4">
+            <div className="flex items-center gap-2 text-accent">
+              <Smartphone className="size-4" />
+              <p className="font-mono text-xs font-semibold uppercase tracking-wider">
+                Mobile Connection
+              </p>
+            </div>
+            <p className="mt-2 font-mono text-[11px] leading-relaxed text-ink">
+              Open <strong>keepr</strong> inside your wallet&apos;s built-in DApp browser to connect.
+            </p>
+
+            <div className="mt-3 divide-y divide-line border-t border-line">
+              {SUPPORTED_WALLETS.map((sw) => (
+                <a
+                  key={sw.name}
+                  href={sw.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between py-2 font-mono text-xs text-ink hover:text-accent transition-colors"
+                >
+                  <span>{sw.name}</span>
+                  <span className="flex items-center gap-1 text-[10px] text-muted uppercase tracking-wider">
+                    {sw.tag} <ExternalLink className="size-3" />
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* 3. Fallback Demo Mode */}
         <div className="mt-6 border-t border-line pt-4">
           <p className="font-mono text-[10px] uppercase tracking-wider text-subtle text-center mb-2">
             Fallback Demo Mode
@@ -268,7 +344,7 @@ export default function SelectWallet({
             <span className="led led-ok" aria-hidden />
             <span>{shortAddr}</span>
             <span className="hidden text-[10px] text-muted lg:inline">
-              ({isConnected ? "Ready" : "Demo"})
+              ({isConnected ? "Connected" : "Demo"})
             </span>
           </button>
           {pickerModal}
