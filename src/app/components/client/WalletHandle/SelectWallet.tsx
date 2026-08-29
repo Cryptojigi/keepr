@@ -27,26 +27,31 @@ function normalizeId(s: string): string {
 const SUPPORTED_WALLETS = [
   {
     name: "Ready Wallet",
+    idKey: "ready",
     url: "https://www.ready.co/",
     tag: "STRK20 Shielded",
   },
   {
     name: "Argent X",
+    idKey: "argent",
     url: "https://www.argent.xyz/argent-x/",
     tag: "Mobile & Browser",
   },
   {
     name: "Braavos",
+    idKey: "braavos",
     url: "https://braavos.app/",
     tag: "Hardware Signer",
   },
   {
     name: "OKX Wallet",
+    idKey: "okx",
     url: "https://www.okx.com/web3",
     tag: "Multi-Chain",
   },
   {
     name: "Xverse",
+    idKey: "xverse",
     url: "https://www.xverse.app/",
     tag: "Bitcoin & Starknet",
   },
@@ -253,90 +258,78 @@ export default function SelectWallet({
           </div>
         ) : null}
 
-        {/* 1. Detected In-Browser Wallets */}
+        {/* 1. All Starknet Wallets */}
         <div className="mt-6 flex flex-col gap-2.5">
-          {pickable.length > 0 ? (
-            pickable.map((w) => (
-              <button
-                key={w.name}
-                type="button"
-                onClick={() => selectWallet(w)}
-                disabled={connecting}
-                className="flex items-center justify-between border border-line bg-raised p-3.5 text-left shadow-[var(--shadow-border)] transition-all hover:bg-cream hover:border-line-hover disabled:opacity-50"
+          {SUPPORTED_WALLETS.map((sw) => {
+            const detected = wallets.find((w) => {
+              const name = normalizeId(w.name);
+              return name.includes(sw.idKey) && !name.includes("metamask");
+            });
+
+            if (detected) {
+              return (
+                <button
+                  key={sw.name}
+                  type="button"
+                  onClick={() => selectWallet(detected)}
+                  disabled={connecting}
+                  className="flex items-center justify-between border border-line bg-raised p-3.5 text-left shadow-[var(--shadow-border)] transition-all hover:bg-cream hover:border-line-hover disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    {detected.icon ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={detected.icon}
+                        alt=""
+                        className="size-7 rounded-sm object-contain"
+                      />
+                    ) : (
+                      <div className="size-7 bg-ink/10 flex items-center justify-center font-mono text-[10px] font-bold text-ink">
+                        {sw.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-display text-base font-bold uppercase tracking-tight text-ink">
+                        {sw.name}
+                      </p>
+                      <p className="font-mono text-[10px] text-accent uppercase tracking-wider">
+                        Detected
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-sm text-accent">
+                    {connecting ? "…" : "→"}
+                  </span>
+                </button>
+              );
+            }
+
+            return (
+              <a
+                key={sw.name}
+                href={sw.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-between border border-line/60 bg-raised/50 p-3.5 text-left transition-all hover:bg-cream hover:border-line group"
               >
                 <div className="flex items-center gap-3">
-                  {w.icon ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={w.icon}
-                      alt=""
-                      className="size-7 rounded-sm object-contain"
-                    />
-                  ) : (
-                    <div className="size-7 bg-ink/10" />
-                  )}
+                  <div className="size-7 bg-ink/5 flex items-center justify-center font-mono text-[10px] font-bold text-muted">
+                    {sw.name.slice(0, 2).toUpperCase()}
+                  </div>
                   <div>
-                    <p className="font-display text-base font-bold uppercase tracking-tight text-ink">
-                      {w.name}
+                    <p className="font-display text-base font-bold uppercase tracking-tight text-ink/80 group-hover:text-ink">
+                      {sw.name}
                     </p>
                     <p className="font-mono text-[10px] text-muted uppercase tracking-wider">
-                      Detected
+                      Not detected
                     </p>
                   </div>
                 </div>
-                <span className="font-mono text-sm text-accent">
-                  {connecting ? "…" : "→"}
-                </span>
-              </button>
-            ))
-          ) : !isMobile ? (
-            <div className="border border-dashed border-line bg-raised/50 p-4 text-center">
-              <p className="font-mono text-xs text-muted">
-                No Starknet wallet detected
-              </p>
-              <a
-                href={READY_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 font-mono text-xs uppercase tracking-wider text-accent underline underline-offset-4"
-              >
-                Install Ready Wallet <ExternalLink className="size-3" />
+                <ExternalLink className="size-4 text-muted group-hover:text-ink transition-colors" />
               </a>
-            </div>
-          ) : null}
+            );
+          })}
         </div>
-
-        {/* 2. Mobile Guidance & Supported Wallets */}
-        {isMobile && pickable.length === 0 ? (
-          <div className="mt-4 border border-line bg-raised p-4">
-            <div className="flex items-center gap-2 text-accent">
-              <Smartphone className="size-4" />
-              <p className="font-mono text-xs font-semibold uppercase tracking-wider">
-                Mobile Connection
-              </p>
-            </div>
-            <p className="mt-2 font-mono text-[11px] leading-relaxed text-ink">
-              Open <strong>keepr</strong> inside your wallet&apos;s built-in DApp browser to connect.
-            </p>
-
-            <div className="mt-3 divide-y divide-line border-t border-line">
-              {SUPPORTED_WALLETS.map((sw) => (
-                <a
-                  key={sw.name}
-                  href={sw.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between py-2 font-mono text-xs text-ink hover:text-accent transition-colors"
-                >
-                  <span>{sw.name}</span>
-                  <span className="flex items-center gap-1 text-[10px] text-muted uppercase tracking-wider">
-                    {sw.tag} <ExternalLink className="size-3" />
-                  </span>
-                </a>
-              ))}
-            </div>
-          </div>
-        ) : null}
 
         {/* 3. Fallback Demo Mode */}
         <div className="mt-6 border-t border-line pt-4">

@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
-import { ConnectGate } from "@/components/connect-gate";
 import { Kicker } from "@/components/kicker";
 import { LoadingVault } from "@/components/loading-vault";
 import { Button } from "@/components/ui/button";
 import { VaultStrip } from "@/components/vault-strip";
+import { WalletModal } from "@/components/wallet-modal";
 import { CREATORS, ratesForCreator } from "@/lib/keepr/data";
 import { formatStrk } from "@/lib/keepr/format";
 import { buildSubscribeActions, computeAuthCommit, computeSubId } from "@/lib/keepr/onchain";
@@ -55,6 +55,10 @@ export default function SubscribePage() {
   const shortfall = Math.max(0, selectedTier.strk - shieldedStrk);
 
   async function onSubscribe() {
+    if (!isLive) {
+      setWalletModalOpen(true);
+      return;
+    }
     if (already) {
       toast("Already subscribed to this channel.");
       return;
@@ -176,21 +180,7 @@ export default function SubscribePage() {
   }
 
   const isLive = isWalletConnected || connected;
-
-  if (!isLive) {
-    return (
-      <main className="mx-auto max-w-6xl px-5">
-        <ConnectGate
-          title="A vault first."
-          body="Connect Ready on mainnet, or enter the demo vault to walk shield → subscribe → proof without a live wallet."
-        >
-          <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">
-            Demo starts with 400 public · 30 shielded STRK
-          </p>
-        </ConnectGate>
-      </main>
-    );
-  }
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 md:py-14">
@@ -301,6 +291,8 @@ export default function SubscribePage() {
           </p>
         </aside>
       </div>
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </main>
   );
 }

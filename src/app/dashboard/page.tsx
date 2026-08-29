@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
-import { ConnectGate } from "@/components/connect-gate";
+import { WalletModal } from "@/components/wallet-modal";
 import { Kicker } from "@/components/kicker";
 import { ProofCard } from "@/components/proof-card";
 import { Button } from "@/components/ui/button";
@@ -42,24 +42,10 @@ export default function DashboardPage() {
   if (!hasHydrated) return <LoadingVault />;
 
   const isLive = isWalletConnected || connected;
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
-  if (!isLive) {
-    return (
-      <main className="mx-auto max-w-6xl px-5">
-        <ConnectGate
-          title="Your vault is closed."
-          body="Open the demo vault to see active channels, the membership card, and one-click cancel."
-        >
-          <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.16em] text-subtle">
-            FTC click-to-cancel. Instant.
-          </p>
-        </ConnectGate>
-      </main>
-    );
-  }
-
-  const active = subs.filter((s) => s.active);
-  const ended = subs.filter((s) => !s.active);
+  const active = isLive ? subs.filter((s) => s.active) : [];
+  const ended = isLive ? subs.filter((s) => !s.active) : [];
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 md:py-14">
@@ -110,6 +96,8 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : null}
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </main>
   );
 }
