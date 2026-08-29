@@ -75,6 +75,10 @@ export function useStrkPrice(): {
 
   useEffect(() => {
     fetchPrice();
+    const timer = setInterval(() => {
+      fetchPrice();
+    }, 60_000);
+    return () => clearInterval(timer);
   }, [fetchPrice]);
 
   return {
