@@ -151,6 +151,10 @@ export default function SubscribePage() {
         toast.error(
           "OKX / standard wallets do not support STRK20 privacy pools. Please switch to Ready Wallet for live shielded subscriptions.",
         );
+      } else if (msg.includes("NOT_REGISTERED")) {
+        toast.error(
+          "Privacy Pool: Your wallet has not shielded any STRK yet. Please click 'Shield' in the Vault strip above to deposit STRK into private notes first.",
+        );
       } else if (
         msg.includes("UNKNOWN_ERROR") ||
         msg.includes("insufficient") ||

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { num } from "starknet";
+import type { WALLET_API } from "@starknet-io/types-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NETWORK_LABEL } from "@/lib/keepr/constants";
+import { NETWORK_LABEL, STRK_TOKEN } from "@/lib/keepr/constants";
 import { formatStrk, shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
+import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 
 export function VaultStrip() {
   const connected = useKeepr((s) => s.connected);
@@ -21,10 +24,18 @@ export function VaultStrip() {
   const revokeSessionKey = useKeepr((s) => s.revokeSessionKey);
   const busy = useKeepr((s) => s.busy);
   const setBusy = useKeepr((s) => s.setBusy);
-  const [amount, setAmount] = useState("70");
+  const [amount, setAmount] = useState("10");
   const { formatStrkUsd } = useStrkPrice();
 
-  if (!connected) return null;
+  // Ready wallet live state
+  const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
+  const connectedAddress = useStoreWallet((s) => s.address);
+  const isWalletConnected = useStoreWallet((s) => s.isConnected);
+
+  const effectiveAddress = connectedAddress || address;
+  const isLive = isWalletConnected || connected;
+
+  if (!isLive) return null;
 
   async function run(kind: "shield" | "unshield") {
     const n = Number(amount);
@@ -33,14 +44,41 @@ export function VaultStrip() {
       return;
     }
     setBusy(kind);
-    await wait(700);
     try {
-      const hash = kind === "shield" ? shield(n) : unshield(n);
-      toast(
-        `${kind === "shield" ? "Shielded" : "Unshielded"} ${n} STRK · ${hash.slice(0, 10)}…`,
-      );
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Rejected.");
+      if (isWalletConnected && myWalletAccount) {
+        toast(`Initiating on-chain ${kind} via STRK20 Privacy Pool…`);
+        const amountWei = BigInt(Math.floor(n)) * 10n ** 18n;
+        const actions: WALLET_API.STRK20_ACTION[] =
+          kind === "shield"
+            ? [{ type: "deposit", token: STRK_TOKEN, amount: num.toHex(amountWei) }]
+            : [
+                {
+                  type: "withdraw",
+                  token: STRK_TOKEN,
+                  amount: num.toHex(amountWei),
+                  recipient: connectedAddress,
+                },
+              ];
+
+        const res = await myWalletAccount.strk20InvokeTransaction(actions);
+        const txHash =
+          typeof res === "string"
+            ? res
+            : (res as { transaction_hash?: string; transactionHash?: string })?.transaction_hash ||
+              "";
+        toast.success(
+          `${kind === "shield" ? "Shielded" : "Unshielded"} ${n} STRK on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`,
+        );
+      } else {
+        await wait(600);
+        const hash = kind === "shield" ? shield(n) : unshield(n);
+        toast(
+          `${kind === "shield" ? "Shielded" : "Unshielded"} ${n} STRK (demo) · ${hash.slice(0, 10)}…`,
+        );
+      }
+    } catch (e: any) {
+      console.error(`${kind} error:`, e);
+      toast.error(e?.message || `${kind} transaction rejected or failed.`);
     } finally {
       setBusy(null);
     }
