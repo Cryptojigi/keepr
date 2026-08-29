@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import SelectWallet from "@/app/components/client/WalletHandle/SelectWallet";
 import { KeeprWordmark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
-import { WalletModal } from "@/components/wallet-modal";
 import { shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { cn } from "@/lib/utils";
@@ -49,24 +49,9 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          {connected ? (
-            <button
-              type="button"
-              onClick={() => disconnect()}
-              className="hidden h-11 items-center px-3 font-mono text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted sm:inline-flex"
-              title="Disconnect demo vault"
-            >
-              {shortAddr(address)}
-            </button>
-          ) : (
-            <Button
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => setWallet(true)}
-            >
-              Connect
-            </Button>
-          )}
+          <div className="hidden sm:inline-flex">
+            <SelectWallet variant="nav" />
+          </div>
           <button
             type="button"
             className="inline-flex size-11 items-center justify-center text-ink md:hidden"
@@ -94,33 +79,12 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            {connected ? (
-              <button
-                type="button"
-                className="flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em] text-ink"
-                onClick={() => {
-                  disconnect();
-                  setMenu(false);
-                }}
-              >
-                Disconnect {shortAddr(address)}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em] text-accent"
-                onClick={() => {
-                  setMenu(false);
-                  setWallet(true);
-                }}
-              >
-                Connect
-              </button>
-            )}
+            <div className="mt-2 py-2 border-t border-line">
+              <SelectWallet variant="gate" />
+            </div>
           </nav>
         </div>
       ) : null}
-      <WalletModal open={wallet} onOpenChange={setWallet} />
     </header>
   );
 }
