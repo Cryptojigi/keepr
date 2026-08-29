@@ -11,7 +11,12 @@ import { VaultStrip } from "@/components/vault-strip";
 import { WalletModal } from "@/components/wallet-modal";
 import { CREATORS, ratesForCreator } from "@/lib/keepr/data";
 import { formatStrk } from "@/lib/keepr/format";
-import { buildSubscribeActions, computeAuthCommit, computeSubId } from "@/lib/keepr/onchain";
+import {
+  buildSubscribeActions,
+  computeAuthCommit,
+  computeSubId,
+  isAccountDeployed,
+} from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
 import type { Creator, TierId } from "@/lib/keepr/types";
@@ -68,6 +73,15 @@ export default function SubscribePage() {
       // 1. Real on-chain flow when Ready wallet is connected
       if (isWalletConnected && myWalletAccount && connectedAddress) {
         toast("Initiating on-chain subscribe via Privacy Pool…");
+
+        // Verify the wallet account is actually deployed on-chain
+        const deployed = await isAccountDeployed(connectedAddress);
+        if (!deployed) {
+          toast.error(
+            "Your Starknet wallet isn't deployed/activated yet. Activate it first (send it a small STRK top-up or use activation in your wallet), then retry.",
+          );
+          return;
+        }
 
         // Generate client-side secret & salt
         const salt =
@@ -157,7 +171,7 @@ export default function SubscribePage() {
         );
       } else if (msg.includes("NOT_REGISTERED")) {
         toast.error(
-          "Privacy Pool: Your wallet has not shielded any STRK yet. Please click 'Shield' in the Vault strip above to deposit STRK into private notes first.",
+          "STRK20 registration required: your wallet hasn't registered with the privacy pool yet. Open your Ready wallet and perform one 'Shield' from the wallet itself (it registers automatically), then retry here.",
         );
       } else if (
         msg.includes("UNKNOWN_ERROR") ||

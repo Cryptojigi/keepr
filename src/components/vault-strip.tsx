@@ -7,6 +7,7 @@ import type { WALLET_API } from "@starknet-io/types-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NETWORK_LABEL, STRK_TOKEN } from "@/lib/keepr/constants";
+import { isAccountDeployed } from "@/lib/keepr/onchain";
 import { formatStrk, shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
@@ -47,6 +48,14 @@ export function VaultStrip() {
     try {
       if (isWalletConnected && myWalletAccount) {
         toast(`Initiating on-chain ${kind} via STRK20 Privacy Pool…`);
+        const account = connectedAddress ?? myWalletAccount.address;
+        const deployed = await isAccountDeployed(account);
+        if (!deployed) {
+          toast.error(
+            "Your Starknet wallet isn't deployed/activated yet. Activate it first (Ready: send it a small STRK top-up or use activation in the wallet), then retry.",
+          );
+          return;
+        }
         const amountWei = BigInt(Math.floor(n)) * 10n ** 18n;
         const actions: WALLET_API.STRK20_ACTION[] =
           kind === "shield"
@@ -78,7 +87,14 @@ export function VaultStrip() {
       }
     } catch (e: any) {
       console.error(`${kind} error:`, e);
-      toast.error(e?.message || `${kind} transaction rejected or failed.`);
+      const msg = e?.message || String(e);
+      if (msg.includes("NOT_REGISTERED")) {
+        toast.error(
+          "STRK20 registration required: your wallet hasn't registered with the privacy pool yet. Open your Ready wallet and perform one 'Shield' from the wallet itself (it registers automatically), then retry here.",
+        );
+      } else {
+        toast.error(msg || `${kind} transaction rejected or failed.`);
+      }
     } finally {
       setBusy(null);
     }

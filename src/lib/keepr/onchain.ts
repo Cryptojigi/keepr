@@ -50,6 +50,25 @@ export function computeAuthCommit(cancelSecret: string | bigint): string {
 }
 
 /**
+ * Check whether an account is deployed on Starknet mainnet.
+ * Returns false when the address has no contract (undeployed / not activated).
+ */
+export async function isAccountDeployed(address: string): Promise<boolean> {
+  try {
+    const provider = getMainnetProvider();
+    await provider.getClassHashAt(address);
+    return true;
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes("Contract not found") || msg.includes("ContractNotFound")) {
+      return false;
+    }
+    console.warn("isAccountDeployed query failed:", err);
+    return true; // unknown error — assume deployed, let the tx surface real issues
+  }
+}
+
+/**
  * Query is_active(sub_id) on the live KeeprSubscriptionHelper contract on Mainnet.
  */
 export async function isActiveOnchain(subId: string): Promise<boolean> {
