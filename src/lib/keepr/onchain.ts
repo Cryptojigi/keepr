@@ -143,7 +143,7 @@ export function buildSubscribeActions(params: {
   const helper = num.toHex(HELPER_MAINNET);
   const token = num.toHex(STRK_TOKEN);
   const creator = num.toHex(creatorAddress);
-  const amountWei = BigInt(Math.floor(amountStrk * 1e18));
+  const amountWei = BigInt(amountStrk) * 10n ** 18n;
   const amountHex = num.toHex(amountWei);
   const periodHex = num.toHex(periodSeconds);
   const tierHex = num.toHex(tierId);

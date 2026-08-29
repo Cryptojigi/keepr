@@ -31,6 +31,8 @@ export default function DashboardPage() {
   const reset = useKeepr((s) => s.reset);
   const [now, setNow] = useState(() => Date.now());
 
+  const isWalletConnected = useStoreWallet((s) => s.isConnected);
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(id);
@@ -38,7 +40,9 @@ export default function DashboardPage() {
 
   if (!hasHydrated) return <LoadingVault />;
 
-  if (!connected) {
+  const isLive = isWalletConnected || connected;
+
+  if (!isLive) {
     return (
       <main className="mx-auto max-w-6xl px-5">
         <ConnectGate

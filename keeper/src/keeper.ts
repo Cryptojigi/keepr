@@ -45,9 +45,9 @@ export class KeeprDaemon {
 
       if (eventsRes && eventsRes.events) {
         for (const evt of eventsRes.events) {
-          // Event keys / data for Subscribed: [sub_id, creator, tier, amount, period, creator_note_id]
-          if (evt.data && evt.data.length > 0) {
-            const subId = evt.data[0];
+          // In Starknet events, evt.keys[0] is selector, evt.keys[1] is #[key] sub_id
+          if (evt.keys && evt.keys.length > 1) {
+            const subId = evt.keys[1];
             if (subId && BigInt(subId) !== 0n) {
               this.trackedSubs.add(num.toHex(subId));
             }

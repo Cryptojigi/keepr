@@ -147,7 +147,9 @@ export default function SubscribePage() {
     return <LoadingVault />;
   }
 
-  if (!connected) {
+  const isLive = isWalletConnected || connected;
+
+  if (!isLive) {
     return (
       <main className="mx-auto max-w-6xl px-5">
         <ConnectGate

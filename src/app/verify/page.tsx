@@ -53,34 +53,38 @@ export default function VerifyPage() {
     setPhase("checking");
 
     try {
-      // 1. Check if user has an existing subscription for this channel
       const localSub = subs.find((s) => s.creatorId === picked && s.active);
       const targetSubId = localSub?.id;
 
-      if (targetSubId) {
-        // Try on-chain verification first
-        const onchainActive = await isActiveOnchain(targetSubId);
-        if (onchainActive) {
-          const onchainRecord = await getSubscriptionOnchain(targetSubId);
-          if (onchainRecord && onchainRecord.active) {
-            const expiryMs = (onchainRecord.lastRenewed + onchainRecord.period) * 1000;
-            setResult({
-              creatorId: picked,
-              tier: onchainRecord.tier,
-              expiryMs,
-              subId: targetSubId,
-              txHash: localSub.txHash || targetSubId,
-              isOnchain: true,
-            });
-            setPhase("valid");
-            toast.success("Verified on-chain via KeeprSubscriptionHelper!");
-            return;
+      // 1. If Ready wallet is connected, verify strictly on-chain
+      if (isWalletConnected) {
+        if (targetSubId) {
+          const onchainActive = await isActiveOnchain(targetSubId);
+          if (onchainActive) {
+            const onchainRecord = await getSubscriptionOnchain(targetSubId);
+            if (onchainRecord && onchainRecord.active) {
+              const expiryMs = (onchainRecord.lastRenewed + onchainRecord.period) * 1000;
+              setResult({
+                creatorId: picked,
+                tier: onchainRecord.tier,
+                expiryMs,
+                subId: targetSubId,
+                txHash: localSub?.txHash || targetSubId,
+                isOnchain: true,
+              });
+              setPhase("valid");
+              toast.success("Verified on-chain via KeeprSubscriptionHelper!");
+              return;
+            }
           }
         }
+        // When a wallet is connected and not verified on-chain, reject
+        setPhase("none");
+        return;
       }
 
-      // 2. Fallback to mock store if running in demo mode
-      if (localSub) {
+      // 2. Demo mode fallback only (when no live wallet is connected)
+      if (connected && localSub) {
         setResult({
           creatorId: picked,
           tier: localSub.tier,

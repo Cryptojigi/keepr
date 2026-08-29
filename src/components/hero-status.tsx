@@ -40,8 +40,8 @@ export function HeroStatus() {
         <StatusRow
           label="Helper"
           value={HELPER_MAINNET ? `${HELPER_MAINNET.slice(0, 6)}…${HELPER_MAINNET.slice(-4)}` : "TBD"}
-          hint="Pending deploy"
-          led="wait"
+          hint="Mainnet"
+          led="ok"
           live={live}
         />
         <StatusRow label="Token" value="STRK" hint="Whitelisted" led="ok" live={live} />
