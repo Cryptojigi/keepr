@@ -334,6 +334,7 @@ function RateRow({
           min={1}
           max={10000}
           step={1}
+          placeholder="0"
           value={strk}
           onChange={(e) => setStrk(e.target.value)}
           onBlur={commitStrk}
@@ -343,7 +344,7 @@ function RateRow({
         />
       </label>
       <p className="font-mono text-xs tabular-nums text-muted sm:pb-3 sm:text-right">
-        ~{formatStrkUsd(Number(strk) || rate.strk)} USD
+        {Number(strk) > 0 ? `~${formatStrkUsd(Number(strk))} USD` : "$0.00 USD"}
       </p>
     </li>
   );

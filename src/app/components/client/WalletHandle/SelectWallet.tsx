@@ -111,6 +111,30 @@ export default function SelectWallet({
     return () => unsub();
   }, []);
 
+  // Auto-reconnect to last connected wallet on page refresh
+  useEffect(() => {
+    if (typeof window === "undefined" || isConnected || wallets.length === 0) return;
+    const lastWallet = localStorage.getItem("keepr_last_wallet");
+    if (!lastWallet) return;
+
+    const match = wallets.find(
+      (w) => normalizeId(w.name) === normalizeId(lastWallet),
+    );
+    if (match) {
+      walletV6
+        .getPermissions(match)
+        .then(async (permissions: any) => {
+          if (
+            Array.isArray(permissions) &&
+            permissions.includes(WALLET_API.Permission.ACCOUNTS)
+          ) {
+            await handleSelectedWallet(match);
+          }
+        })
+        .catch((e) => console.log("Auto-reconnect skipped:", e));
+    }
+  }, [wallets, isConnected]);
+
   // Filter pickable wallets (exclude metamask snap probing and phantom Braavos adapter)
   const pickable = wallets.filter((w) => {
     const id = normalizeId(w.name);
@@ -141,6 +165,9 @@ export default function SelectWallet({
 
     setConnected(isConnectedWallet);
     if (isConnectedWallet) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("keepr_last_wallet", selectedWallet.name);
+      }
       const chainId = (await walletV6.requestChainId(selectedWallet)) as string;
       setChain(chainId);
       setCurrentFrontendProviderIndex(
@@ -167,6 +194,9 @@ export default function SelectWallet({
   }
 
   function handleDisconnect() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("keepr_last_wallet");
+    }
     setConnected(false);
     setAddressAccount("");
     setMyWalletAccount(null as any);

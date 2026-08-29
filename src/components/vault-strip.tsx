@@ -67,16 +67,22 @@ export function VaultStrip() {
           <Stat label="Pool" value="STRK20" />
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="sr-only" htmlFor="shield-amt">
-            Amount in STRK
-          </label>
-          <Input
-            id="shield-amt"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="sm:max-w-36"
-          />
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="shield-amt">
+              Amount in STRK
+            </label>
+            <Input
+              id="shield-amt"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="sm:max-w-28"
+            />
+            <span className="font-mono text-xs tabular-nums text-muted shrink-0 min-w-[3.5rem]">
+              {Number(amount) > 0 ? `~${formatStrkUsd(Number(amount))}` : "$0.00"}
+            </span>
+          </div>
           <Button
             variant="outline"
             onClick={() => void run("shield")}
