@@ -21,6 +21,7 @@ import { creatorById, rateById } from "@/lib/keepr/data";
 import { formatCountdown, formatDate, formatStrk } from "@/lib/keepr/format";
 import { buildCancelActions } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
+import { useStrkPrice } from "@/lib/keepr/price";
 import type { Subscription } from "@/lib/keepr/types";
 
 export default function DashboardPage() {
@@ -132,6 +133,7 @@ function ChannelRow({
 
   const creator = creatorById(sub.creatorId);
   const tier = rateById(sub.creatorId, sub.tier, creatorRates);
+  const { formatStrkUsd } = useStrkPrice();
 
   async function handleConfirmCancel() {
     setCancelling(true);
@@ -177,7 +179,7 @@ function ChannelRow({
             {creator?.name ?? sub.creatorId}
           </h3>
           <p className="mt-1 font-mono text-xs text-muted">
-            {tier.name} · {formatStrk(sub.amountStrk)} STRK / 30 days
+            {tier.name} · {formatStrk(sub.amountStrk)} STRK (~{formatStrkUsd(sub.amountStrk)}) / 30 days
           </p>
         </div>
         <span className="stamp">Active</span>

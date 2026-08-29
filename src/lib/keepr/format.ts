@@ -12,11 +12,24 @@ export function formatStrk(n: number): string {
 }
 
 export function formatUsd(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return "$0.00";
+  if (n < 0.01 && n > 0) return `<$0.01`;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n);
+}
+
+export function usdFromStrk(strkAmount: number, strkPriceUsd = 0.02434): string {
+  return formatUsd(strkAmount * strkPriceUsd);
+}
+
+export function formatStrkWithUsd(strkAmount: number, strkPriceUsd = 0.02434): string {
+  const strkFmt = formatStrk(strkAmount);
+  const usdFmt = formatUsd(strkAmount * strkPriceUsd);
+  return `${strkFmt} STRK (${usdFmt})`;
 }
 
 export function formatDate(ts: number): string {

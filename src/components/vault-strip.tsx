@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { NETWORK_LABEL } from "@/lib/keepr/constants";
 import { formatStrk, shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
+import { useStrkPrice } from "@/lib/keepr/price";
 
 export function VaultStrip() {
   const connected = useKeepr((s) => s.connected);
@@ -21,6 +22,7 @@ export function VaultStrip() {
   const busy = useKeepr((s) => s.busy);
   const setBusy = useKeepr((s) => s.setBusy);
   const [amount, setAmount] = useState("70");
+  const { formatStrkUsd } = useStrkPrice();
 
   if (!connected) return null;
 
@@ -59,8 +61,8 @@ export function VaultStrip() {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-          <Stat label="Public" value={`${formatStrk(publicStrk)} STRK`} />
-          <Stat label="Shielded" value={`${formatStrk(shieldedStrk)} STRK`} accent />
+          <Stat label="Public" value={`${formatStrk(publicStrk)} STRK`} sub={`~${formatStrkUsd(publicStrk)}`} />
+          <Stat label="Shielded" value={`${formatStrk(shieldedStrk)} STRK`} sub={`~${formatStrkUsd(shieldedStrk)}`} accent />
           <Stat label="Session" value={sessionKey ? "Live" : "Off"} />
           <Stat label="Pool" value="STRK20" />
         </div>
@@ -115,10 +117,12 @@ export function VaultStrip() {
 function Stat({
   label,
   value,
+  sub,
   accent,
 }: {
   label: string;
   value: string;
+  sub?: string;
   accent?: boolean;
 }) {
   return (
@@ -131,6 +135,11 @@ function Stat({
       >
         {value}
       </p>
+      {sub ? (
+        <p className="mt-0.5 font-mono text-[10px] tabular-nums text-muted">
+          {sub}
+        </p>
+      ) : null}
     </div>
   );
 }

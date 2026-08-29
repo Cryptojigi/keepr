@@ -22,6 +22,7 @@ import {
 } from "@/lib/keepr/data";
 import { formatDate, formatStrk } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
+import { useStrkPrice } from "@/lib/keepr/price";
 import type { CreatorRate, TierId } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ export default function CreatorPage() {
   const unlockCreator = useKeepr((s) => s.unlockCreator);
   const subs = useKeepr((s) => s.subs);
   const [chartOn, setChartOn] = useState(false);
+  const { formatStrkUsd } = useStrkPrice();
 
   useEffect(() => {
     setChartOn(true);
@@ -128,7 +130,12 @@ export default function CreatorPage() {
 
       <div className="mt-8 grid gap-px bg-line sm:grid-cols-3">
         <Stat k="Active channels" v={String(subscribers)} />
-        <Stat k="Private MRR" v={`${formatStrk(mrr)} STRK`} accent />
+        <Stat
+          k="Private MRR"
+          v={`${formatStrk(mrr)} STRK`}
+          sub={`~${formatStrkUsd(mrr)} USD`}
+          accent
+        />
         <Stat k="Churn" v={`${churn.toFixed(1)}%`} />
       </div>
 
@@ -164,40 +171,34 @@ export default function CreatorPage() {
                 </defs>
                 <XAxis
                   dataKey="m"
-                  tick={{
-                    fill: "rgba(28,15,15,0.45)",
-                    fontSize: 11,
-                    fontFamily: "IBM Plex Mono",
-                  }}
-                  axisLine={{ stroke: "rgba(100,24,26,0.18)" }}
+                  stroke="var(--color-ink-subtle)"
+                  fontSize={10}
                   tickLine={false}
+                  axisLine={false}
+                  fontFamily="var(--font-mono)"
                 />
                 <YAxis
-                  tick={{
-                    fill: "rgba(28,15,15,0.45)",
-                    fontSize: 11,
-                    fontFamily: "IBM Plex Mono",
-                  }}
-                  axisLine={false}
+                  stroke="var(--color-ink-subtle)"
+                  fontSize={10}
                   tickLine={false}
-                  width={48}
+                  axisLine={false}
+                  fontFamily="var(--font-mono)"
+                  tickFormatter={(v) => `${v}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "var(--color-cream)",
-                    border: "1px solid var(--color-line)",
-                    borderRadius: 0,
-                    fontFamily: "IBM Plex Mono, monospace",
-                    fontSize: 12,
-                    color: "var(--color-ink)",
+                    background: "var(--color-bg-base)",
+                    border: "1px solid var(--color-border)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "11px",
                   }}
-                  formatter={(value) => [`${String(value)} STRK`, "Inflow"]}
+                  formatter={(value) => [`${String(value)} STRK (~${formatStrkUsd(Number(value) || 0)})`, "Inflow"]}
                 />
                 <Area
                   type="monotone"
                   dataKey="v"
                   stroke="var(--color-accent)"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   fill="url(#keeprFill)"
                 />
               </AreaChart>
@@ -208,14 +209,14 @@ export default function CreatorPage() {
         </div>
       </section>
 
-      <section className="mt-10">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <Kicker>Income receipts</Kicker>
-          <p className="font-mono text-[11px] text-subtle">
-            Export does not include payer addresses.
+      <section className="mt-8 bg-raised p-4 shadow-[var(--shadow-border)] sm:p-5">
+        <div className="flex items-center justify-between">
+          <Kicker>Income statements</Kicker>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
+            Provable receipts
           </p>
         </div>
-        <ul className="mt-4 divide-y divide-line bg-cream shadow-[var(--shadow-border)]">
+        <ul className="mt-4 divide-y divide-line border-t border-line">
           {DEMO_RECEIPTS.map((r) => (
             <li
               key={r.id}
@@ -230,6 +231,9 @@ export default function CreatorPage() {
               <div className="flex items-center gap-4">
                 <p className="font-mono text-sm tabular-nums text-ink">
                   {formatStrk(r.amountStrk)} STRK
+                  <span className="ml-1 text-muted text-xs">
+                    (~{formatStrkUsd(r.amountStrk)})
+                  </span>
                 </p>
                 <Button
                   variant="outline"
@@ -286,6 +290,7 @@ function RateRow({
   const setCreatorRate = useKeepr((s) => s.setCreatorRate);
   const [name, setName] = useState(rate.name);
   const [strk, setStrk] = useState(String(rate.strk));
+  const { formatStrkUsd } = useStrkPrice();
 
   useEffect(() => {
     setName(rate.name);
@@ -338,7 +343,7 @@ function RateRow({
         />
       </label>
       <p className="font-mono text-xs tabular-nums text-muted sm:pb-3 sm:text-right">
-        ~{usdFromStrk(Number(strk) || rate.strk)} USD
+        ~{formatStrkUsd(Number(strk) || rate.strk)} USD
       </p>
     </li>
   );
@@ -347,10 +352,12 @@ function RateRow({
 function Stat({
   k,
   v,
+  sub,
   accent,
 }: {
   k: string;
   v: string;
+  sub?: string;
   accent?: boolean;
 }) {
   return (
@@ -363,6 +370,11 @@ function Stat({
       >
         {v}
       </p>
+      {sub ? (
+        <p className="mt-1 font-mono text-xs tabular-nums text-muted">
+          {sub}
+        </p>
+      ) : null}
     </div>
   );
 }

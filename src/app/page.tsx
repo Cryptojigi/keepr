@@ -18,6 +18,7 @@ import {
 } from "@/lib/keepr/data";
 import { formatStamp, formatStrk } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
+import { useStrkPrice } from "@/lib/keepr/price";
 
 export default function Home() {
   const ticks = keeperFeed();
@@ -221,6 +222,7 @@ function Cell({ v, accent }: { v: string; accent?: boolean }) {
 
 function Rates() {
   const book = useKeepr((s) => s.creatorRates);
+  const { formatStrkUsd } = useStrkPrice();
 
   return (
     <section className="border-b border-line">
@@ -269,7 +271,7 @@ function Rates() {
                           {formatStrk(r.strk)} STRK
                         </span>
                         <span className="mt-0.5 block font-mono text-[10px] text-subtle">
-                          ~{usdFromStrk(r.strk)} USD
+                          ~{formatStrkUsd(r.strk)} USD
                         </span>
                       </span>
                     </li>

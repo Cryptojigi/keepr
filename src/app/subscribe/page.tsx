@@ -13,6 +13,7 @@ import { CREATORS, ratesForCreator } from "@/lib/keepr/data";
 import { formatStrk } from "@/lib/keepr/format";
 import { buildSubscribeActions, computeAuthCommit, computeSubId } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
+import { useStrkPrice } from "@/lib/keepr/price";
 import type { Creator, TierId } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export default function SubscribePage() {
   const busy = useKeepr((s) => s.busy);
   const subs = useKeepr((s) => s.subs);
   const router = useRouter();
+  const { formatStrkUsd } = useStrkPrice();
 
   // Ready wallet on-chain state
   const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
@@ -186,6 +188,7 @@ export default function SubscribePage() {
                 active={c.id === creator.id}
                 subscribed={subs.some((s) => s.creatorId === c.id && s.active)}
                 onPick={() => setPicked(c.id)}
+                formatStrkUsd={formatStrkUsd}
               />
             </li>
           ))}
@@ -214,20 +217,33 @@ export default function SubscribePage() {
                 <span className="font-mono text-xs uppercase tracking-[0.14em] text-gold">
                   {t.name}
                 </span>
-                <span className="font-mono text-sm tabular-nums text-ink">
-                  {formatStrk(t.strk)} STRK
+                <span className="font-mono text-xs tabular-nums text-ink text-right">
+                  <span>{formatStrk(t.strk)} STRK</span>
+                  <span className="ml-1.5 text-[10px] text-muted">
+                    (~{formatStrkUsd(t.strk)})
+                  </span>
                 </span>
               </button>
             ))}
           </div>
 
           <dl className="mt-5 space-y-2 border-t border-line pt-4 font-mono text-xs">
-            <Row k="Charge" v={`${formatStrk(selectedTier.strk)} STRK`} />
+            <Row
+              k="Charge"
+              v={`${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
+            />
             <Row k="Period" v="30 days" />
-            <Row k="Shielded" v={`${formatStrk(shieldedStrk)} STRK`} />
+            <Row
+              k="Shielded"
+              v={`${formatStrk(shieldedStrk)} STRK (~${formatStrkUsd(shieldedStrk)})`}
+            />
             <Row
               k="To shield"
-              v={shortfall > 0 ? `${formatStrk(shortfall)} STRK` : "—"}
+              v={
+                shortfall > 0
+                  ? `${formatStrk(shortfall)} STRK (~${formatStrkUsd(shortfall)})`
+                  : "—"
+              }
             />
             <Row k="Session" v={sessionKey ? "Granted" : "Will grant"} />
           </dl>
@@ -241,7 +257,7 @@ export default function SubscribePage() {
               ? "Already open"
               : busy
                 ? "Submitting"
-                : `Subscribe · ${formatStrk(selectedTier.strk)} STRK`}
+                : `Subscribe · ${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
           </Button>
           <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
             Cancel is one click. The keeper never moves more than the exact
@@ -258,11 +274,13 @@ function CreatorCard({
   active,
   subscribed,
   onPick,
+  formatStrkUsd,
 }: {
   creator: Creator;
   active: boolean;
   subscribed: boolean;
   onPick: () => void;
+  formatStrkUsd: (amount: number) => string;
 }) {
   return (
     <button
@@ -291,6 +309,7 @@ function CreatorCard({
       <p className="mt-2 text-sm leading-relaxed text-ink">{creator.blurb}</p>
       <p className="mt-4 font-mono text-[11px] tabular-nums text-subtle">
         {creator.subscribers} shielded · {formatStrk(creator.mrrStrk)} STRK MRR
+        <span className="ml-1 text-muted">(~{formatStrkUsd(creator.mrrStrk)})</span>
       </p>
     </button>
   );
