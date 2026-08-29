@@ -48,6 +48,10 @@ A1priv/A1priv.ts
 # cairo build artifacts
 /cairo/target/
 
+# keeper build artifacts & dependencies
+keeper/node_modules/
+keeper/dist/
+
 # IDE / AI assistants
 .codex/
 .cursor/

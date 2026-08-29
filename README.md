@@ -82,6 +82,15 @@ npm run dev
 
 ---
 
+## Deployed Contracts & Live Demo
+
+- **Live Web App**: [https://keepr-eta.vercel.app](https://keepr-eta.vercel.app)
+- **Helper Contract (Starknet Mainnet)**: [`0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1`](https://voyager.online/contract/0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1)
+- **Helper Class Hash**: `0x3c78baa25d7dbf1240c33c74980d2071dff2e0b7f8971fd5822137eb2e7e28b`
+- **STRK20 Privacy Pool**: `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a`
+
+---
+
 ## Submission & Verification
 
 - Submission metadata: [`strk20.json`](./strk20.json)
