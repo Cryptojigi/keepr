@@ -20,6 +20,8 @@ import { formatStamp, formatStrk } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
 
+import { SiteFooter } from "@/components/site-footer";
+
 export default function Home() {
   const ticks = keeperFeed();
 
@@ -32,6 +34,7 @@ export default function Home() {
       <Rates />
       <Keeper ticks={ticks} />
       <Close />
+      <SiteFooter />
     </main>
   );
 }

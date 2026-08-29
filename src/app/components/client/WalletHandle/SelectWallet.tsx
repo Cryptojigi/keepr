@@ -387,7 +387,12 @@ export default function SelectWallet({
     );
   }
 
-  // Gate Variant / CTA Big
+  // Gate Variant (used exclusively by WalletModal dialog)
+  if (variant === "gate") {
+    return pickerModal;
+  }
+
+  // CTA Big Variant
   return (
     <>
       <button

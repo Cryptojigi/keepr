@@ -50,7 +50,6 @@ export default function RootLayout({
         <KeeprHydrate />
         <SiteHeader />
         <div className="flex-1">{children}</div>
-        <SiteFooter />
         <Toaster
           position="bottom-right"
           toastOptions={{
