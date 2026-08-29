@@ -111,10 +111,10 @@ export default function SelectWallet({
     return () => unsub();
   }, []);
 
-  // Filter pickable wallets (exclude metamask snap probing only; Braavos included)
+  // Filter pickable wallets (exclude metamask snap probing and phantom Braavos adapter)
   const pickable = wallets.filter((w) => {
     const id = normalizeId(w.name);
-    return !id.includes("metamask");
+    return !id.includes("metamask") && !id.includes("braavos");
   });
 
   async function handleSelectedWallet(selectedWallet: WalletWithStarknetFeatures) {
@@ -215,9 +215,6 @@ export default function SelectWallet({
           <h2 className="mt-1 font-display text-2xl font-bold uppercase tracking-tight text-ink">
             Connect Wallet
           </h2>
-          <p className="mt-2 font-mono text-xs text-muted leading-relaxed">
-            Connect Ready, Braavos, or your Starknet wallet for shielded subscriptions and zero-knowledge gates on Mainnet.
-          </p>
         </div>
 
         {error ? (
@@ -253,9 +250,7 @@ export default function SelectWallet({
                       {w.name}
                     </p>
                     <p className="font-mono text-[10px] text-muted uppercase tracking-wider">
-                      {w.name.toLowerCase().includes("ready")
-                        ? "STRK20 Privacy Enabled"
-                        : "Detected Extension"}
+                      Detected
                     </p>
                   </div>
                 </div>
@@ -267,7 +262,7 @@ export default function SelectWallet({
           ) : !isMobile ? (
             <div className="border border-dashed border-line bg-raised/50 p-4 text-center">
               <p className="font-mono text-xs text-muted">
-                No Starknet wallet extension detected in this browser.
+                No Starknet wallet detected
               </p>
               <a
                 href={READY_URL}
