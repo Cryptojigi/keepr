@@ -36,6 +36,10 @@ export default function SubscribePage() {
   const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
   const connectedAddress = useStoreWallet((s) => s.address);
   const isWalletConnected = useStoreWallet((s) => s.isConnected);
+  const walletObj = useStoreWallet((s) => s.StarknetWalletObject);
+  const isReadyWallet = walletObj?.name
+    ? walletObj.name.toLowerCase().includes("ready")
+    : true; // default true if extension name is generic
 
   const creatorRates = useKeepr((s) => s.creatorRates);
   const [picked, setPicked] = useState<string>("forge");
@@ -137,9 +141,27 @@ export default function SubscribePage() {
       const sub = subscribe(creator.id, selectedTier.id);
       toast(`Channel open · ${sub.txHash.slice(0, 12)}…`);
       router.push("/dashboard");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Subscribe error:", e);
-      toast.error(e instanceof Error ? e.message : "Transaction rejected or failed.");
+      const msg = e?.message || String(e);
+      if (
+        msg.includes("wallet_strk20InvokeTransaction") ||
+        msg.includes("Unknown request type")
+      ) {
+        toast.error(
+          "OKX / standard wallets do not support STRK20 privacy pools. Please switch to Ready Wallet for live shielded subscriptions.",
+        );
+      } else if (
+        msg.includes("UNKNOWN_ERROR") ||
+        msg.includes("insufficient") ||
+        msg.includes("User abort")
+      ) {
+        toast.error(
+          "Ready wallet error: Your Ready wallet must be funded with STRK on Starknet Mainnet to cover the subscription note and gas.",
+        );
+      } else {
+        toast.error(msg || "Transaction rejected or failed.");
+      }
     } finally {
       setBusy(null);
     }
@@ -259,6 +281,16 @@ export default function SubscribePage() {
                 ? "Submitting"
                 : `Subscribe · ${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
           </Button>
+
+          {isWalletConnected && !isReadyWallet ? (
+            <div className="mt-3 border border-line bg-raised p-3 font-mono text-[11px] leading-relaxed text-ink">
+              <p className="text-accent font-semibold uppercase tracking-wider">STRK20 Privacy Pool</p>
+              <p className="mt-1 text-muted">
+                Live on-chain shielded notes require <strong>Ready Wallet</strong> (for client-side ZK proofs). Standard wallets like OKX/Argent do not support STRK20 privacy pools.
+              </p>
+            </div>
+          ) : null}
+
           <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
             Cancel is one click. The keeper never moves more than the exact
             renewal.

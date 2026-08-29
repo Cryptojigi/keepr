@@ -160,9 +160,17 @@ function ChannelRow({
       }
       cancel(sub.id);
       setConfirm(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Cancel failed:", err);
-      toast.error(err instanceof Error ? err.message : "Cancel transaction failed.");
+      const msg = err?.message || String(err);
+      if (
+        msg.includes("wallet_strk20InvokeTransaction") ||
+        msg.includes("Unknown request type")
+      ) {
+        toast.error("Standard wallets do not support STRK20 privacy actions. Please use Ready Wallet.");
+      } else {
+        toast.error(msg || "Cancel transaction failed.");
+      }
     } finally {
       setCancelling(false);
     }
