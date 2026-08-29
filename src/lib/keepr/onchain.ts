@@ -1,0 +1,231 @@
+import { hash, num, RpcProvider, validateAndParseAddress } from "starknet";
+import type { WALLET_API } from "@starknet-io/types-js";
+import { HELPER_MAINNET, STRK_TOKEN } from "./constants";
+
+export interface OnchainSubscriptionRecord {
+  creator: string;
+  tier: number;
+  amount: bigint;
+  period: number;
+  lastRenewed: number;
+  active: boolean;
+  creatorNoteId: string;
+  authCommit: string;
+}
+
+/**
+ * Returns the active Starknet Mainnet RPC provider.
+ */
+export function getMainnetProvider(): RpcProvider {
+  const rawKey = process.env.NEXT_PUBLIC_PROVIDER_URL || "";
+  const alchemyKey = rawKey.includes("/") ? rawKey.split("/").pop() || "" : rawKey;
+  const nodeUrl = rawKey.startsWith("http")
+    ? rawKey
+    : alchemyKey
+      ? `https://starknet-mainnet.g.alchemy.com/v2/${alchemyKey}`
+      : "https://free-rpc.nethermind.io/mainnet-juno";
+
+  return new RpcProvider({ nodeUrl });
+}
+
+/**
+ * Compute the deterministic, privacy-preserving sub_id = poseidon(wallet_address, salt).
+ */
+export function computeSubId(walletAddress: string, salt: string | bigint): string {
+  try {
+    const cleanAddr = validateAndParseAddress(walletAddress);
+    const saltFelt = num.toHex(salt);
+    return hash.computePoseidonHashOnElements([cleanAddr, saltFelt]);
+  } catch {
+    return hash.computePoseidonHashOnElements([walletAddress, num.toHex(salt)]);
+  }
+}
+
+/**
+ * Compute the cancel authorization commitment = poseidon(cancel_secret).
+ */
+export function computeAuthCommit(cancelSecret: string | bigint): string {
+  const secretFelt = num.toHex(cancelSecret);
+  return hash.computePoseidonHashOnElements([secretFelt]);
+}
+
+/**
+ * Query is_active(sub_id) on the live KeeprSubscriptionHelper contract on Mainnet.
+ */
+export async function isActiveOnchain(subId: string): Promise<boolean> {
+  if (!HELPER_MAINNET) return false;
+  try {
+    const provider = getMainnetProvider();
+    const cleanSubId = num.toHex(subId);
+    const res = await provider.callContract({
+      contractAddress: HELPER_MAINNET,
+      entrypoint: "is_active",
+      calldata: [cleanSubId],
+    });
+    if (!res || res.length === 0) return false;
+    return res[0] === "0x1" || BigInt(res[0]) === 1n;
+  } catch (err) {
+    console.warn("isActiveOnchain query failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Query get_subscription(sub_id) on the live KeeprSubscriptionHelper contract on Mainnet.
+ */
+export async function getSubscriptionOnchain(
+  subId: string,
+): Promise<OnchainSubscriptionRecord | null> {
+  if (!HELPER_MAINNET) return null;
+  try {
+    const provider = getMainnetProvider();
+    const cleanSubId = num.toHex(subId);
+    const res = await provider.callContract({
+      contractAddress: HELPER_MAINNET,
+      entrypoint: "get_subscription",
+      calldata: [cleanSubId],
+    });
+
+    // Format: [creator, tier, amount, period, last_renewed, active, creator_note_id, auth_commit]
+    if (!res || res.length < 8) return null;
+
+    const active = res[5] === "0x1" || BigInt(res[5]) === 1n;
+    // If empty uninitialized record (creator = 0x0), return null
+    if (BigInt(res[0]) === 0n && !active) {
+      return null;
+    }
+
+    return {
+      creator: res[0],
+      tier: Number(BigInt(res[1])),
+      amount: BigInt(res[2]),
+      period: Number(BigInt(res[3])),
+      lastRenewed: Number(BigInt(res[4])),
+      active,
+      creatorNoteId: res[6],
+      authCommit: res[7],
+    };
+  } catch (err) {
+    console.warn("getSubscriptionOnchain query failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Build the STRK20_ACTION array for a real Subscribe transaction through the Privacy Pool.
+ *
+ * Sequence:
+ * 1. Withdraw amount to Helper contract
+ * 2. Create OPEN note transfer for Creator
+ * 3. Invoke KeeprSubscriptionHelper privacy_invoke(op=0, sub_id, creator, tier, amount, period, creator_note_id, auth_commit, 0)
+ */
+export function buildSubscribeActions(params: {
+  creatorAddress: string;
+  tierId: number;
+  amountStrk: number;
+  periodSeconds?: number;
+  subId: string;
+  authCommit: string;
+}): WALLET_API.STRK20_ACTION[] {
+  const {
+    creatorAddress,
+    tierId,
+    amountStrk,
+    periodSeconds = 30 * 24 * 60 * 60, // 30 days = 2592000s
+    subId,
+    authCommit,
+  } = params;
+
+  if (!HELPER_MAINNET) {
+    throw new Error("Helper contract address not configured.");
+  }
+
+  const helper = num.toHex(HELPER_MAINNET);
+  const token = num.toHex(STRK_TOKEN);
+  const creator = num.toHex(creatorAddress);
+  const amountWei = BigInt(Math.floor(amountStrk * 1e18));
+  const amountHex = num.toHex(amountWei);
+  const periodHex = num.toHex(periodSeconds);
+  const tierHex = num.toHex(tierId);
+  const subIdHex = num.toHex(subId);
+  const authCommitHex = num.toHex(authCommit);
+
+  return [
+    {
+      type: "withdraw",
+      token,
+      amount: amountHex,
+      recipient: helper,
+    },
+    {
+      type: "transfer",
+      token,
+      amount: "OPEN",
+      recipient: creator,
+    },
+    {
+      type: "invoke",
+      contract: helper,
+      calldata: [
+        token,
+        "${poolAddress}",
+        "0x0", // op = 0 (OP_SUBSCRIBE)
+        subIdHex,
+        creator,
+        tierHex,
+        amountHex,
+        periodHex,
+        "${openNoteIds[0]}",
+        authCommitHex,
+        "0x0", // auth_preimage = 0
+      ],
+    },
+  ];
+}
+
+/**
+ * Build the STRK20_ACTION array for a Cancel transaction through the Privacy Pool.
+ *
+ * Sequence:
+ * 1. Invoke KeeprSubscriptionHelper privacy_invoke(op=2, sub_id, ..., auth_preimage)
+ * No tokens required.
+ */
+export function buildCancelActions(params: {
+  creatorAddress: string;
+  tierId: number;
+  subId: string;
+  authPreimage: string;
+}): WALLET_API.STRK20_ACTION[] {
+  const { creatorAddress, tierId, subId, authPreimage } = params;
+
+  if (!HELPER_MAINNET) {
+    throw new Error("Helper contract address not configured.");
+  }
+
+  const helper = num.toHex(HELPER_MAINNET);
+  const token = num.toHex(STRK_TOKEN);
+  const creator = num.toHex(creatorAddress);
+  const tierHex = num.toHex(tierId);
+  const subIdHex = num.toHex(subId);
+  const authPreimageHex = num.toHex(authPreimage);
+
+  return [
+    {
+      type: "invoke",
+      contract: helper,
+      calldata: [
+        token,
+        "${poolAddress}",
+        "0x2", // op = 2 (OP_CANCEL)
+        subIdHex,
+        creator,
+        tierHex,
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0",
+        authPreimageHex,
+      ],
+    },
+  ];
+}

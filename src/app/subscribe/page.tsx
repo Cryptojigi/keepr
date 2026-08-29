@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 import { ConnectGate } from "@/components/connect-gate";
 import { Kicker } from "@/components/kicker";
 import { LoadingVault } from "@/components/loading-vault";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { VaultStrip } from "@/components/vault-strip";
 import { CREATORS, ratesForCreator } from "@/lib/keepr/data";
 import { formatStrk } from "@/lib/keepr/format";
+import { buildSubscribeActions, computeAuthCommit, computeSubId } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 import type { Creator, TierId } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,11 @@ export default function SubscribePage() {
   const busy = useKeepr((s) => s.busy);
   const subs = useKeepr((s) => s.subs);
   const router = useRouter();
+
+  // Ready wallet on-chain state
+  const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
+  const connectedAddress = useStoreWallet((s) => s.address);
+  const isWalletConnected = useStoreWallet((s) => s.isConnected);
 
   const creatorRates = useKeepr((s) => s.creatorRates);
   const [picked, setPicked] = useState<string>("forge");
@@ -48,6 +55,72 @@ export default function SubscribePage() {
     }
     setBusy("subscribe");
     try {
+      // 1. Real on-chain flow when Ready wallet is connected
+      if (isWalletConnected && myWalletAccount && connectedAddress) {
+        toast("Initiating on-chain subscribe via Privacy Pool…");
+
+        // Generate client-side secret & salt
+        const salt =
+          "0x" +
+          Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+        const cancelSecret =
+          "0x" +
+          Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+
+        const subId = computeSubId(connectedAddress, salt);
+        const authCommit = computeAuthCommit(cancelSecret);
+
+        const actions = buildSubscribeActions({
+          creatorAddress: creator.address,
+          tierId: selectedTier.id,
+          amountStrk: selectedTier.strk,
+          periodSeconds: 30 * 24 * 60 * 60,
+          subId,
+          authCommit,
+        });
+
+        // Send via Ready Wallet Account V6
+        const res = await myWalletAccount.strk20InvokeTransaction(actions);
+        const txHash =
+          typeof res === "string"
+            ? res
+            : (res as { transaction_hash?: string; transactionHash?: string })?.transaction_hash ||
+              (res as { transaction_hash?: string; transactionHash?: string })?.transactionHash ||
+              "";
+
+        toast.success(`Subscribed on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`);
+
+        // Record in store
+        const now = Date.now();
+        useKeepr.setState((s) => ({
+          subs: [
+            {
+              id: subId,
+              creatorId: creator.id,
+              tier: selectedTier.id,
+              amountStrk: selectedTier.strk,
+              startedAt: now,
+              lastRenewedAt: now,
+              nextRenewalAt: now + 30 * 24 * 60 * 60 * 1000,
+              active: true,
+              autoRenew: !!sessionKey,
+              txHash: txHash || `0x${Date.now().toString(16)}`,
+              authSecret: cancelSecret,
+              salt,
+            },
+            ...s.subs,
+          ],
+        }));
+
+        router.push("/dashboard");
+        return;
+      }
+
+      // 2. Simulated / Demo fallback flow
       if (shortfall > 0) {
         if (publicStrk < shortfall) {
           toast("Not enough public STRK to shield the remainder.");
@@ -63,7 +136,8 @@ export default function SubscribePage() {
       toast(`Channel open · ${sub.txHash.slice(0, 12)}…`);
       router.push("/dashboard");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Rejected.");
+      console.error("Subscribe error:", e);
+      toast.error(e instanceof Error ? e.message : "Transaction rejected or failed.");
     } finally {
       setBusy(null);
     }

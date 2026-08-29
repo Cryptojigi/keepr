@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 import { ConnectGate } from "@/components/connect-gate";
 import { Kicker } from "@/components/kicker";
 import { ProofCard } from "@/components/proof-card";
@@ -18,6 +19,7 @@ import { VaultStrip } from "@/components/vault-strip";
 import { LoadingVault } from "@/components/loading-vault";
 import { creatorById, rateById } from "@/lib/keepr/data";
 import { formatCountdown, formatDate, formatStrk } from "@/lib/keepr/format";
+import { buildCancelActions } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 import type { Subscription } from "@/lib/keepr/types";
 
@@ -116,54 +118,97 @@ function ChannelRow({
   now: number;
   sessionKey: boolean;
 }) {
-  const creator = creatorById(sub.creatorId);
-  const book = useKeepr((s) => s.creatorRates);
-  const tier = rateById(sub.creatorId, sub.tier, book);
+  const [confirm, setConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const creatorRates = useKeepr((s) => s.creatorRates);
   const cancel = useKeepr((s) => s.cancel);
   const setAutoRenew = useKeepr((s) => s.setAutoRenew);
-  const simulateRenew = useKeepr((s) => s.simulateRenew);
-  const [confirm, setConfirm] = useState(false);
+  const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
+  const isWalletConnected = useStoreWallet((s) => s.isConnected);
 
-  function onToggle(on: boolean) {
-    try {
-      setAutoRenew(sub.id, on);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Rejected.");
-    }
-  }
+  const creator = creatorById(sub.creatorId);
+  const tier = rateById(sub.creatorId, sub.tier, creatorRates);
 
-  function onRenew() {
+  async function handleConfirmCancel() {
+    setCancelling(true);
     try {
-      const hash = simulateRenew(sub.id);
-      toast(`Keeper renewed · ${hash.slice(0, 12)}…`);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Rejected.");
+      if (isWalletConnected && myWalletAccount && sub.authSecret && creator?.address) {
+        toast("Submitting on-chain cancellation through Privacy Pool…");
+        const actions = buildCancelActions({
+          creatorAddress: creator.address,
+          tierId: sub.tier,
+          subId: sub.id,
+          authPreimage: sub.authSecret,
+        });
+        const res = await myWalletAccount.strk20InvokeTransaction(actions);
+        const txHash =
+          typeof res === "string"
+            ? res
+            : (res as { transaction_hash?: string; transactionHash?: string })?.transaction_hash ||
+              "";
+        toast.success(
+          `Cancelled on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`,
+        );
+      } else {
+        toast("Channel revoked.");
+      }
+      cancel(sub.id);
+      setConfirm(false);
+    } catch (err) {
+      console.error("Cancel failed:", err);
+      toast.error(err instanceof Error ? err.message : "Cancel transaction failed.");
+    } finally {
+      setCancelling(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <ProofCard sub={sub} />
-      <div className="flex flex-col gap-3 bg-raised p-4 shadow-[var(--shadow-border)] sm:flex-row sm:items-center">
-        <div className="flex min-h-11 flex-1 items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
-              Auto-renew
-            </p>
-            <p className="mt-0.5 font-mono text-xs tabular-nums text-ink">
-              Next {formatCountdown(sub.nextRenewalAt - now)} ·{" "}
-              {formatDate(sub.nextRenewalAt)}
-            </p>
-          </div>
-          <Switch
-            checked={sub.autoRenew && sessionKey}
-            onCheckedChange={onToggle}
-            aria-label={`Auto-renew ${creator?.name ?? "channel"}`}
-          />
+    <div className="bg-raised p-5 shadow-[var(--shadow-border)]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">
+            {creator?.category ?? "Channel"}
+          </p>
+          <h3 className="mt-1 font-display text-2xl font-bold uppercase tracking-tight">
+            {creator?.name ?? sub.creatorId}
+          </h3>
+          <p className="mt-1 font-mono text-xs text-muted">
+            {tier.name} · {formatStrk(sub.amountStrk)} STRK / 30 days
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onRenew}>
-            Simulate tick
+        <span className="stamp">Active</span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line pt-4 font-mono text-xs sm:grid-cols-3">
+        <div>
+          <p className="uppercase tracking-[0.14em] text-subtle">Opened</p>
+          <p className="mt-1 text-ink">{formatDate(sub.startedAt)}</p>
+        </div>
+        <div>
+          <p className="uppercase tracking-[0.14em] text-subtle">Next charge</p>
+          <p className="mt-1 text-ink">{formatDate(sub.nextRenewalAt)}</p>
+        </div>
+        <div>
+          <p className="uppercase tracking-[0.14em] text-subtle">Keeper window</p>
+          <p className="mt-1 tabular-nums text-gold">
+            {formatCountdown(sub.nextRenewalAt)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
+        <label className="flex cursor-pointer items-center gap-3 font-mono text-xs">
+          <Switch
+            checked={sub.autoRenew}
+            onCheckedChange={(c) => setAutoRenew(sub.id, c)}
+          />
+          <span className="uppercase tracking-[0.14em] text-ink">
+            Keeper auto-renewal
+          </span>
+        </label>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/verify`}>Proof pass</Link>
           </Button>
           <Button variant="danger" size="sm" onClick={() => setConfirm(true)}>
             Cancel
@@ -182,15 +227,16 @@ function ChannelRow({
           <div className="mt-6 flex gap-2">
             <Button
               variant="danger"
-              onClick={() => {
-                cancel(sub.id);
-                setConfirm(false);
-                toast("Channel revoked.");
-              }}
+              disabled={cancelling}
+              onClick={() => void handleConfirmCancel()}
             >
-              Confirm cancel
+              {cancelling ? "Cancelling…" : "Confirm cancel"}
             </Button>
-            <Button variant="ghost" onClick={() => setConfirm(false)}>
+            <Button
+              variant="ghost"
+              disabled={cancelling}
+              onClick={() => setConfirm(false)}
+            >
               Keep
             </Button>
           </div>

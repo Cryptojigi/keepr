@@ -24,6 +24,7 @@ export type Creator = {
   blurb: string;
   subscribers: number;
   mrrStrk: number;
+  address: string;
 };
 
 export type Subscription = {
@@ -37,6 +38,8 @@ export type Subscription = {
   active: boolean;
   autoRenew: boolean;
   txHash: string;
+  authSecret?: string;
+  salt?: string;
 };
 
 export type KeeperEvent = {

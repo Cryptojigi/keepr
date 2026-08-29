@@ -3,49 +3,100 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 import { HashGrid } from "@/components/hash-grid";
 import { Kicker } from "@/components/kicker";
 import { Button } from "@/components/ui/button";
 import { CREATORS, creatorById, rateById } from "@/lib/keepr/data";
 import { formatDate } from "@/lib/keepr/format";
+import { getSubscriptionOnchain, isActiveOnchain } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 
 type Phase = "idle" | "signing" | "checking" | "valid" | "none";
+
+interface VerifiedPass {
+  creatorId: string;
+  tier: number;
+  expiryMs: number;
+  subId: string;
+  txHash: string;
+  isOnchain: boolean;
+}
 
 export default function VerifyPage() {
   const connected = useKeepr((s) => s.connected);
   const creatorRates = useKeepr((s) => s.creatorRates);
   const address = useKeepr((s) => s.address);
   const subs = useKeepr((s) => s.subs);
+
+  // Ready wallet state
+  const isWalletConnected = useStoreWallet((s) => s.isConnected);
+  const walletAddress = useStoreWallet((s) => s.address);
+
   const [phase, setPhase] = useState<Phase>("idle");
   const [picked, setPicked] = useState("forge");
-  const [result, setResult] = useState<(typeof subs)[number] | null>(null);
+  const [result, setResult] = useState<VerifiedPass | null>(null);
 
   const challenge = `keepr:gate:${picked}:strk20-demo`;
   const creator = creatorById(picked);
 
   async function run() {
-    let current = useKeepr.getState();
-    if (!current.hasHydrated) {
-      await wait(250);
-      current = useKeepr.getState();
-    }
-    if (!current.connected) {
-      toast("Open the vault first.");
+    const isLive = isWalletConnected || connected;
+    if (!isLive) {
+      toast("Connect a wallet or open the vault first.");
       return;
     }
+
     setPhase("signing");
     setResult(null);
-    await wait(600);
+    await wait(400);
     setPhase("checking");
-    await wait(900);
-    const found = useKeepr
-      .getState()
-      .subs.find((s) => s.creatorId === picked && s.active);
-    if (found) {
-      setResult(found);
-      setPhase("valid");
-    } else {
+
+    try {
+      // 1. Check if user has an existing subscription for this channel
+      const localSub = subs.find((s) => s.creatorId === picked && s.active);
+      const targetSubId = localSub?.id;
+
+      if (targetSubId) {
+        // Try on-chain verification first
+        const onchainActive = await isActiveOnchain(targetSubId);
+        if (onchainActive) {
+          const onchainRecord = await getSubscriptionOnchain(targetSubId);
+          if (onchainRecord && onchainRecord.active) {
+            const expiryMs = (onchainRecord.lastRenewed + onchainRecord.period) * 1000;
+            setResult({
+              creatorId: picked,
+              tier: onchainRecord.tier,
+              expiryMs,
+              subId: targetSubId,
+              txHash: localSub.txHash || targetSubId,
+              isOnchain: true,
+            });
+            setPhase("valid");
+            toast.success("Verified on-chain via KeeprSubscriptionHelper!");
+            return;
+          }
+        }
+      }
+
+      // 2. Fallback to mock store if running in demo mode
+      if (localSub) {
+        setResult({
+          creatorId: picked,
+          tier: localSub.tier,
+          expiryMs: localSub.nextRenewalAt,
+          subId: localSub.id,
+          txHash: localSub.txHash,
+          isOnchain: false,
+        });
+        setPhase("valid");
+        return;
+      }
+
+      // 3. No active subscription found
+      setPhase("none");
+    } catch (err) {
+      console.error("Verification check failed:", err);
       setPhase("none");
     }
   }
@@ -117,8 +168,9 @@ export default function VerifyPage() {
           creatorName={creator?.name ?? picked}
           handle={creator?.handle ?? ""}
           tierName={rateById(result.creatorId, result.tier, creatorRates).name}
-          expiry={result.nextRenewalAt}
+          expiry={result.expiryMs}
           seed={result.txHash}
+          isOnchain={result.isOnchain}
         />
       ) : null}
 
@@ -166,18 +218,27 @@ function ResultValid({
   tierName,
   expiry,
   seed,
+  isOnchain,
 }: {
   creatorName: string;
   handle: string;
   tierName: string;
   expiry: number;
   seed: string;
+  isOnchain?: boolean;
 }) {
   return (
     <section className="mt-6 bg-cream p-5 shadow-[var(--shadow-border)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="kicker">Valid</p>
+          <div className="flex items-center gap-2">
+            <p className="kicker">Valid</p>
+            {isOnchain ? (
+              <span className="rounded bg-ok/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-ok">
+                On-Chain Verified
+              </span>
+            ) : null}
+          </div>
           <h2 className="mt-2 text-2xl">{creatorName}</h2>
           <p className="mt-1 font-mono text-xs text-muted">{handle}</p>
         </div>

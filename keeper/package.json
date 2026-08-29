@@ -1,0 +1,20 @@
+{
+  "name": "keepr-keeper-agent",
+  "version": "0.1.0",
+  "description": "Keepr Autonomous Renewal Agent (Phase 2 Dry-Run Daemon)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dry-run": "ts-node src/index.ts --dry-run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "starknet": "^6.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
