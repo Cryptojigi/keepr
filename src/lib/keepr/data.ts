@@ -52,9 +52,9 @@ export const CREATOR_RATES: Record<string, CreatorRate[]> = {
     { id: 2, name: "Floor", strk: 300 },
   ],
   cipher: [
-    { id: 0, name: "Digest", strk: 25 },
-    { id: 1, name: "Brief", strk: 80 },
-    { id: 2, name: "Desk", strk: 200 },
+    { id: 0, name: "Digest", strk: 15 },
+    { id: 1, name: "Brief", strk: 60 },
+    { id: 2, name: "Desk", strk: 100 },
   ],
   forge: [
     { id: 0, name: "Calls", strk: 50 },
