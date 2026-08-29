@@ -1,13 +1,22 @@
-import "dotenv/config";
+import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+dotenv.config();
+
 import { KeeprDaemon } from "./keeper";
 import type { KeeperConfig } from "./types";
 
-const rpcUrl = process.env.STARKNET_RPC || process.env.NEXT_PUBLIC_PROVIDER_URL;
-if (!rpcUrl) {
+const rawRpc = process.env.STARKNET_RPC || process.env.NEXT_PUBLIC_PROVIDER_URL;
+if (!rawRpc) {
   throw new Error(
     "Missing RPC endpoint. Please set STARKNET_RPC or NEXT_PUBLIC_PROVIDER_URL in your environment.",
   );
 }
+
+const rpcUrl = rawRpc.startsWith("http")
+  ? rawRpc
+  : `https://starknet-mainnet.g.alchemy.com/v2/${rawRpc.split("/").pop()}`;
 
 const config: KeeperConfig = {
   rpcUrl,
