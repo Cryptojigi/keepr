@@ -7,7 +7,7 @@ import type { WALLET_API } from "@starknet-io/types-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NETWORK_LABEL, STRK_TOKEN } from "@/lib/keepr/constants";
-import { isAccountDeployed } from "@/lib/keepr/onchain";
+import { isAccountDeployed, refreshLiveBalances } from "@/lib/keepr/onchain";
 import { formatStrk, shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
@@ -35,6 +35,14 @@ export function VaultStrip() {
 
   const effectiveAddress = connectedAddress || address;
   const isLive = isWalletConnected || connected;
+
+  // Live on-chain balances: poll while a real wallet is connected (25s cadence).
+  useEffect(() => {
+    if (!isWalletConnected || !myWalletAccount || !connectedAddress) return;
+    void refreshLiveBalances();
+    const id = setInterval(() => void refreshLiveBalances(), 25_000);
+    return () => clearInterval(id);
+  }, [isWalletConnected, myWalletAccount, connectedAddress]);
 
   if (!isLive) return null;
 
@@ -78,6 +86,7 @@ export function VaultStrip() {
         toast.success(
           `${kind === "shield" ? "Shielded" : "Unshielded"} ${n} STRK on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`,
         );
+        void refreshLiveBalances();
       } else {
         await wait(600);
         const hash = kind === "shield" ? shield(n) : unshield(n);

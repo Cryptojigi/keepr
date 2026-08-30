@@ -69,6 +69,37 @@ export async function isAccountDeployed(address: string): Promise<boolean> {
 }
 
 /**
+ * Refresh the user's live STRK balances (public + shielded) into the store.
+ * Public = STRK token balanceOf; shielded = wallet's STRK20 pool balance.
+ * Safe to call anytime; silently no-ops when no wallet is connected.
+ */
+export async function refreshLiveBalances(): Promise<void> {
+  const { useKeepr } = await import("@/lib/keepr/store");
+  const { myWalletAccount, address } =
+    (await import("@/app/components/Wallet/walletContext")).useStoreWallet.getState();
+  if (!myWalletAccount || !address) return;
+  try {
+    const entries: any[] = await myWalletAccount.strk20Balances([STRK_TOKEN]);
+    const strkEntry = entries.find(
+      (e: any) => (e?.token || e?.[0] || "").toLowerCase() === STRK_TOKEN.toLowerCase(),
+    );
+    const shieldedRaw = strkEntry ? (strkEntry.balance ?? strkEntry.amount ?? strkEntry[1]) : 0n;
+    const shieldedStrk = Number(BigInt(shieldedRaw ?? 0n)) / 1e18;
+    const balRes = await getMainnetProvider().callContract({
+      contractAddress: STRK_TOKEN,
+      entrypoint: "balanceOf",
+      calldata: [address],
+    });
+    const low = BigInt(balRes[0]);
+    const high = BigInt(balRes[1] ?? 0n);
+    const publicStrk = Number((high << 128n) | low) / 1e18;
+    useKeepr.setState({ publicStrk, shieldedStrk });
+  } catch (err) {
+    console.warn("refreshLiveBalances failed:", err);
+  }
+}
+
+/**
  * Query is_active(sub_id) on the live KeeprSubscriptionHelper contract on Mainnet.
  */
 export async function isActiveOnchain(subId: string): Promise<boolean> {
