@@ -67,7 +67,7 @@ export const CREATOR_RATES: Record<string, CreatorRate[]> = {
     { id: 2, name: "Patron", strk: 250 },
   ],
   vellum: [
-    { id: 0, name: "Studio", strk: 20 },
+    { id: 0, name: "Studio", strk: 10 },
     { id: 1, name: "Patron", strk: 75 },
     { id: 2, name: "Circle", strk: 180 },
   ],
