@@ -224,8 +224,7 @@ export const useKeepr = create<KeeprStore>()(
         }),
     }),
     {
-      name: "keepr.v2",
-      version: 2,
+      name: "keepr.v3",
       skipHydration: true,
       partialize: (s) => ({
         connected: s.connected,
