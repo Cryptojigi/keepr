@@ -126,11 +126,19 @@ function ChannelRow({
 
   async function handleConfirmCancel() {
     setCancelling(true);
+    const connectedAddress = useStoreWallet.getState().address;
+    const payoutAddress =
+      sub.creatorAddress ||
+      process.env.NEXT_PUBLIC_CREATOR_PAYOUT ||
+      connectedAddress ||
+      creator?.address ||
+      "";
+
     try {
-      if (isWalletConnected && myWalletAccount && sub.authSecret && creator?.address) {
+      if (isWalletConnected && myWalletAccount && sub.authSecret && payoutAddress) {
         toast("Submitting on-chain cancellation through Privacy Pool…");
         const actions = buildCancelActions({
-          creatorAddress: creator.address,
+          creatorAddress: payoutAddress,
           tierId: sub.tier,
           subId: sub.id,
           authPreimage: sub.authSecret,

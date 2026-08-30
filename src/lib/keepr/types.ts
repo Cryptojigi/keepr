@@ -40,6 +40,7 @@ export type Subscription = {
   txHash: string;
   authSecret?: string;
   salt?: string;
+  creatorAddress?: string;
 };
 
 export type KeeperEvent = {

@@ -98,8 +98,11 @@ export default function SubscribePage() {
         const subId = computeSubId(connectedAddress, salt);
         const authCommit = computeAuthCommit(cancelSecret);
 
+        const creatorPayoutAddress =
+          process.env.NEXT_PUBLIC_CREATOR_PAYOUT || connectedAddress;
+
         const actions = buildSubscribeActions({
-          creatorAddress: creator.address,
+          creatorAddress: creatorPayoutAddress,
           tierId: selectedTier.id,
           amountStrk: selectedTier.strk,
           periodSeconds: 30 * 24 * 60 * 60,
@@ -135,6 +138,7 @@ export default function SubscribePage() {
               txHash: txHash || `0x${Date.now().toString(16)}`,
               authSecret: cancelSecret,
               salt,
+              creatorAddress: creatorPayoutAddress,
             },
             ...s.subs,
           ],
