@@ -189,12 +189,13 @@ export default function SubscribePage() {
     }
   }
 
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+
   if (!hasHydrated) {
     return <LoadingVault />;
   }
 
   const isLive = isWalletConnected || connected;
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 md:py-14">

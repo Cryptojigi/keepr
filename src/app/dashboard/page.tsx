@@ -39,10 +39,11 @@ export default function DashboardPage() {
     return () => window.clearInterval(id);
   }, []);
 
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+
   if (!hasHydrated) return <LoadingVault />;
 
   const isLive = isWalletConnected || connected;
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   const active = isLive ? subs.filter((s) => s.active) : [];
   const ended = isLive ? subs.filter((s) => !s.active) : [];
