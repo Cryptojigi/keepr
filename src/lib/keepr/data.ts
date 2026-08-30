@@ -47,29 +47,29 @@ export const TIERS: Tier[] = [
 
 export const CREATOR_RATES: Record<string, CreatorRate[]> = {
   aegis: [
-    { id: 0, name: "Watch", strk: 40 },
-    { id: 1, name: "Desk", strk: 120 },
-    { id: 2, name: "Floor", strk: 300 },
+    { id: 0, name: "Watch", strk: 4 },
+    { id: 1, name: "Desk", strk: 10 },
+    { id: 2, name: "Floor", strk: 25 },
   ],
   cipher: [
-    { id: 0, name: "Digest", strk: 15 },
-    { id: 1, name: "Brief", strk: 60 },
-    { id: 2, name: "Desk", strk: 100 },
+    { id: 0, name: "Digest", strk: 3 },
+    { id: 1, name: "Brief", strk: 8 },
+    { id: 2, name: "Desk", strk: 15 },
   ],
   forge: [
-    { id: 0, name: "Calls", strk: 50 },
-    { id: 1, name: "Quota", strk: 150 },
-    { id: 2, name: "Uncapped", strk: 400 },
+    { id: 0, name: "Calls", strk: 5 },
+    { id: 1, name: "Quota", strk: 12 },
+    { id: 2, name: "Uncapped", strk: 30 },
   ],
   archive: [
-    { id: 0, name: "Issue", strk: 25 },
-    { id: 1, name: "Library", strk: 100 },
-    { id: 2, name: "Patron", strk: 250 },
+    { id: 0, name: "Issue", strk: 3 },
+    { id: 1, name: "Library", strk: 8 },
+    { id: 2, name: "Patron", strk: 20 },
   ],
   vellum: [
-    { id: 0, name: "Studio", strk: 10 },
-    { id: 1, name: "Patron", strk: 75 },
-    { id: 2, name: "Circle", strk: 180 },
+    { id: 0, name: "Studio", strk: 2 },
+    { id: 1, name: "Patron", strk: 10 },
+    { id: 2, name: "Circle", strk: 20 },
   ],
 };
 
