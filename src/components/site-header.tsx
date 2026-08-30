@@ -49,9 +49,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <div className="hidden sm:inline-flex">
-            <SelectWallet variant="nav" />
-          </div>
+          <SelectWallet variant="nav" />
           <button
             type="button"
             className="inline-flex size-11 items-center justify-center text-ink md:hidden"
@@ -65,7 +63,7 @@ export function SiteHeader() {
       </div>
       {menu ? (
         <div className="border-t border-line bg-raised md:hidden">
-          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-2">
+          <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3">
             {NAV.map((item) => (
               <Link
                 key={item.href}
@@ -79,9 +77,6 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <div className="mt-2 py-2 border-t border-line">
-              <SelectWallet variant="gate" />
-            </div>
           </nav>
         </div>
       ) : null}

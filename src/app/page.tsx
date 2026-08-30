@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { HeroStatus } from "@/components/hero-status";
 import { Kicker } from "@/components/kicker";
 import { KeeprMark } from "@/components/mark";
 import { TerminalBlock } from "@/components/terminal-block";
@@ -26,7 +26,7 @@ export default function Home() {
   const ticks = keeperFeed();
 
   return (
-    <main>
+    <main className="w-full max-w-[100vw] overflow-x-hidden">
       <Hero />
       <How />
       <Why />
@@ -41,36 +41,69 @@ export default function Home() {
 
 function Hero() {
   return (
-    <section className="border-b border-line">
-      <div className="mx-auto grid max-w-6xl items-stretch gap-10 px-5 py-14 md:grid-cols-[1fr_22rem] md:py-20">
-        <div className="flex flex-col justify-center">
-          <Kicker>Protocol · {NETWORK_LABEL}</Kicker>
-          <div className="mt-6 flex items-start gap-4">
-            <KeeprMark size={40} className="mt-2 hidden sm:block" />
-            <h1 className="font-display text-6xl font-bold uppercase leading-[0.9] tracking-tight text-ink sm:text-7xl md:text-8xl">
-              Keepr
-            </h1>
-          </div>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink sm:text-xl">
-            Private subscriptions for agents and creators. Paid from shielded
-            notes. Renewed by a keeper. Proven without a wallet scan.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button asChild size="lg">
-              <Link href="/subscribe">
-                Open a channel
-                <ArrowRight />
-              </Link>
-            </Button>
-            <a
-              href="#loop"
-              className="inline-flex h-12 items-center font-mono text-xs uppercase tracking-[0.16em] text-muted hover:text-ink"
-            >
-              They do parts
-            </a>
-          </div>
+    <section className="relative min-h-[90dvh] overflow-hidden border-b border-line flex items-center">
+      {/* Background image — fades into site via gradient overlay */}
+      <div className="pointer-events-none absolute inset-0">
+        <Image
+          src="/another.png"
+          alt=""
+          fill
+          priority
+          quality={85}
+          sizes="100vw"
+          className="object-cover object-right"
+          style={{ objectPosition: "70% center" }}
+        />
+        {/* Fade: only bottom edge blends into next section */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent 0%, transparent 70%, var(--color-base) 100%)",
+          }}
+        />
+        {/* Fade: narrow left strip only — keeps text legible without killing image */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to right, var(--color-base) 0%, rgba(190,185,179,0.5) 22%, transparent 50%)",
+          }}
+        />
+        {/* Mobile overlay — light tint only, image stays bold */}
+        <div
+          className="absolute inset-0 sm:hidden"
+          style={{ background: "rgba(190,185,179,0.25)" }}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-20 md:py-28">
+        <Kicker>Protocol · {NETWORK_LABEL}</Kicker>
+        <div className="mt-6 flex items-start gap-4">
+          <KeeprMark size={40} className="mt-2 hidden sm:block shrink-0" />
+          <h1 className="font-display text-5xl font-bold uppercase leading-[0.9] tracking-tight text-ink sm:text-7xl md:text-8xl lg:text-9xl">
+            Keepr
+          </h1>
         </div>
-        <HeroStatus />
+        <p className="mt-6 max-w-md text-lg leading-relaxed text-ink sm:text-xl">
+          Private subscriptions for agents and creators. Paid from shielded
+          notes. Renewed by a keeper. Proven without a wallet scan.
+        </p>
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button asChild size="lg">
+            <Link href="/subscribe">
+              Open a channel
+              <ArrowRight />
+            </Link>
+          </Button>
+          <a
+            href="#loop"
+            className="inline-flex h-12 items-center font-mono text-xs uppercase tracking-[0.16em] text-muted hover:text-ink transition-colors"
+          >
+            They do parts
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -174,8 +207,9 @@ function Loop() {
           Keepr is the shielded note, the keeper, the viewing-key receipt, and
           the STARK gate — in one protocol.
         </p>
-        <div className="mt-10 overflow-x-auto shadow-[var(--shadow-border)]">
-          <table className="w-full min-w-[32rem] border-collapse text-left">
+        <div className="mt-10 -mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
+          <div className="shadow-[var(--shadow-border)] min-w-0">
+          <table className="w-full min-w-[28rem] border-collapse text-left">
             <thead>
               <tr className="bg-raised">
                 {["Capability", "Private pay", "Typical sub", "Keepr"].map(
@@ -201,6 +235,7 @@ function Loop() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </section>
@@ -310,22 +345,24 @@ function Keeper({
           {ticks.map((t) => (
             <li
               key={`${t.subId}-${t.at}`}
-              className="grid grid-cols-[4.5rem_4.5rem_1fr] gap-3 px-4 py-3 font-mono text-[11px] sm:grid-cols-[5.5rem_5rem_8rem_1fr] sm:text-xs"
+              className="grid grid-cols-[4rem_1fr] gap-x-3 gap-y-0 px-4 py-3 font-mono text-[10px] sm:grid-cols-[5.5rem_5rem_8rem_1fr] sm:text-xs"
             >
               <span className="tabular-nums text-cream/75">
                 {formatStamp(t.at)}
               </span>
-              <span
-                className={
-                  t.status === "hold" ? "text-amber" : "uppercase text-cream"
-                }
-              >
-                {t.action}
+              <span className="truncate text-cream">{t.detail}</span>
+              <span className="hidden sm:block col-span-0">
+                <span
+                  className={
+                    t.status === "hold" ? "text-amber" : "uppercase text-cream"
+                  }
+                >
+                  {t.action}
+                </span>
               </span>
               <span className="hidden truncate text-cream/80 sm:block">
                 {t.subId}
               </span>
-              <span className="truncate text-cream">{t.detail}</span>
             </li>
           ))}
         </ol>
