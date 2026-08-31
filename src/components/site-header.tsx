@@ -16,6 +16,7 @@ const NAV = [
   { href: "/dashboard", label: "Vault" },
   { href: "/creator", label: "Creator" },
   { href: "/verify", label: "Verify" },
+  { href: "/docs", label: "Docs" },
 ] as const;
 
 export function SiteHeader() {

@@ -41,7 +41,7 @@ export default function Home() {
 
 function Hero() {
   return (
-    <section className="relative min-h-[90dvh] overflow-hidden border-b border-line flex items-center">
+    <section className="relative overflow-hidden border-b border-line flex items-center min-h-[72dvh] sm:min-h-[80dvh] md:min-h-[78dvh]">
       {/* Background image — fades into site via gradient overlay */}
       <div className="pointer-events-none absolute inset-0">
         <Image
@@ -78,7 +78,7 @@ function Hero() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-20 md:py-28">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-14 sm:py-20 md:py-24">
         <Kicker>Protocol · {NETWORK_LABEL}</Kicker>
         <div className="mt-6 flex items-start gap-4">
           <KeeprMark size={40} className="mt-2 hidden sm:block shrink-0" />

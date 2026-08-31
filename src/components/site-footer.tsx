@@ -24,6 +24,9 @@ export function SiteFooter() {
           <Link href="/" className="hover:text-cream">
             Protocol
           </Link>
+          <Link href="/docs" className="hover:text-cream">
+            Docs
+          </Link>
           <a href={STRK20_URL} target="_blank" rel="noreferrer" className="hover:text-cream">
             STRK20
           </a>
