@@ -47,19 +47,32 @@ export default function SubscribePage() {
     : true; // default true if extension name is generic
 
   const creatorRates = useKeepr((s) => s.creatorRates);
-  const [picked, setPicked] = useState<string>("forge");
+  const [picked, setPicked] = useState<string | null>(null);
   const [tier, setTier] = useState<TierId>(1);
 
   const creator = useMemo(
-    () => CREATORS.find((c) => c.id === picked) ?? CREATORS[0],
+    () => (picked ? CREATORS.find((c) => c.id === picked) ?? null : null),
     [picked],
   );
-  const rates = ratesForCreator(creator.id, creatorRates);
-  const selectedTier = rates.find((t) => t.id === tier) ?? rates[1] ?? rates[0];
-  const already = subs.some((s) => s.creatorId === creator.id && s.active);
-  const shortfall = Math.max(0, selectedTier.strk - shieldedStrk);
+  const rates = useMemo(
+    () => (creator ? ratesForCreator(creator.id, creatorRates) : []),
+    [creator, creatorRates],
+  );
+  const selectedTier = useMemo(
+    () =>
+      creator && rates.length > 0
+        ? rates.find((t) => t.id === tier) ?? rates[1] ?? rates[0]
+        : null,
+    [creator, rates, tier],
+  );
+  const already = creator ? subs.some((s) => s.creatorId === creator.id && s.active) : false;
+  const shortfall = selectedTier ? Math.max(0, selectedTier.strk - shieldedStrk) : 0;
 
   async function onSubscribe() {
+    if (!creator || !selectedTier) {
+      toast("Please select a channel first.");
+      return;
+    }
     if (!isLive) {
       setWalletModalOpen(true);
       return;
@@ -220,95 +233,130 @@ export default function SubscribePage() {
             <li key={c.id}>
               <CreatorCard
                 creator={c}
-                active={c.id === creator.id}
+                active={c.id === picked}
                 subscribed={subs.some((s) => s.creatorId === c.id && s.active)}
-                onPick={() => setPicked(c.id)}
+                onPick={() => {
+                  setPicked(c.id);
+                  setTier(1);
+                }}
                 formatStrkUsd={formatStrkUsd}
               />
             </li>
           ))}
         </ul>
 
-        <aside className="h-fit bg-cream p-5 shadow-[var(--shadow-border)] lg:sticky lg:top-20">
-          <p className="kicker">Confirm</p>
-          <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight">
-            {creator.name}
-          </h2>
-          <p className="mt-1 font-mono text-xs text-muted">{creator.handle}</p>
+        {creator && selectedTier ? (
+          <aside className="h-fit bg-cream p-5 shadow-[var(--shadow-border)] lg:sticky lg:top-20">
+            <p className="kicker">Confirm</p>
+            <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight">
+              {creator.name}
+            </h2>
+            <p className="mt-1 font-mono text-xs text-muted">{creator.handle}</p>
 
-          <div className="mt-5 flex flex-col gap-2">
-            {rates.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTier(t.id)}
-                className={cn(
-                  "flex items-center justify-between px-3 py-3 text-left transition-[background-color,box-shadow] duration-150",
-                  t.id === tier
-                    ? "bg-accent-muted shadow-[inset_3px_0_0_0_var(--color-accent)]"
-                    : "bg-raised/70 hover:bg-raised",
-                )}
-              >
-                <span className="font-mono text-xs uppercase tracking-[0.14em] text-gold">
-                  {t.name}
-                </span>
-                <span className="font-mono text-xs tabular-nums text-ink text-right">
-                  <span>{formatStrk(t.strk)} STRK</span>
-                  <span className="ml-1.5 text-[10px] text-muted">
-                    (~{formatStrkUsd(t.strk)})
+            <div className="mt-5 flex flex-col gap-2">
+              {rates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTier(t.id)}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-3 text-left transition-[background-color,box-shadow] duration-150",
+                    t.id === tier
+                      ? "bg-accent-muted shadow-[inset_3px_0_0_0_var(--color-accent)]"
+                      : "bg-raised/70 hover:bg-raised",
+                  )}
+                >
+                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-gold">
+                    {t.name}
                   </span>
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span className="font-mono text-xs tabular-nums text-ink text-right">
+                    <span>{formatStrk(t.strk)} STRK</span>
+                    <span className="ml-1.5 text-[10px] text-muted">
+                      (~{formatStrkUsd(t.strk)})
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
 
-          <dl className="mt-5 space-y-2 border-t border-line pt-4 font-mono text-xs">
-            <Row
-              k="Charge"
-              v={`${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
-            />
-            <Row k="Period" v="30 days" />
-            <Row
-              k="Shielded"
-              v={`${formatStrk(shieldedStrk)} STRK (~${formatStrkUsd(shieldedStrk)})`}
-            />
-            <Row
-              k="To shield"
-              v={
-                shortfall > 0
-                  ? `${formatStrk(shortfall)} STRK (~${formatStrkUsd(shortfall)})`
-                  : "—"
-              }
-            />
-            <Row k="Session" v={sessionKey ? "Granted" : "Will grant"} />
-          </dl>
+            <dl className="mt-5 space-y-2 border-t border-line pt-4 font-mono text-xs">
+              <Row
+                k="Charge"
+                v={`${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
+              />
+              <Row k="Period" v="30 days" />
+              <Row
+                k="Shielded"
+                v={`${formatStrk(shieldedStrk)} STRK (~${formatStrkUsd(shieldedStrk)})`}
+              />
+              <Row
+                k="To shield"
+                v={
+                  shortfall > 0
+                    ? `${formatStrk(shortfall)} STRK (~${formatStrkUsd(shortfall)})`
+                    : "—"
+                }
+              />
+              <Row k="Session" v={sessionKey ? "Granted" : "Will grant"} />
+            </dl>
 
-          <Button
-            className="mt-5 w-full"
-            onClick={() => void onSubscribe()}
-            disabled={!!busy || already}
-          >
-            {already
-              ? "Already open"
-              : busy
-                ? "Submitting"
-                : `Subscribe · ${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
-          </Button>
+            <Button
+              className="mt-5 w-full"
+              onClick={() => void onSubscribe()}
+              disabled={!!busy || already}
+            >
+              {already
+                ? "Already open"
+                : busy
+                  ? "Submitting"
+                  : `Subscribe · ${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
+            </Button>
 
-          {isWalletConnected && !isReadyWallet ? (
-            <div className="mt-3 border border-line bg-raised p-3 font-mono text-[11px] leading-relaxed text-ink">
-              <p className="text-accent font-semibold uppercase tracking-wider">STRK20 Privacy Pool</p>
-              <p className="mt-1 text-muted">
-                Live on-chain shielded notes require <strong>Ready Wallet</strong> (for client-side ZK proofs). Standard wallets like OKX/Argent do not support STRK20 privacy pools.
+            {isWalletConnected && !isReadyWallet ? (
+              <div className="mt-3 border border-line bg-raised p-3 font-mono text-[11px] leading-relaxed text-ink">
+                <p className="text-accent font-semibold uppercase tracking-wider">STRK20 Privacy Pool</p>
+                <p className="mt-1 text-muted">
+                  Live on-chain shielded notes require <strong>Ready Wallet</strong> (for client-side ZK proofs). Standard wallets like OKX/Argent do not support STRK20 privacy pools.
+                </p>
+              </div>
+            ) : null}
+
+            <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
+              Cancel is one click. The keeper never moves more than the exact
+              renewal.
+            </p>
+          </aside>
+        ) : (
+          <aside className="h-fit bg-cream p-5 shadow-[var(--shadow-border)] lg:sticky lg:top-20">
+            <p className="kicker">Confirm</p>
+            <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight text-ink">
+              Select Channel
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Choose an agent or creator from the list to view subscription tiers, pricing, and confirm shielded access.
+            </p>
+
+            <div className="mt-6 border border-dashed border-line bg-raised/40 p-6 text-center">
+              <p className="font-mono text-xs uppercase tracking-[0.14em] text-subtle">
+                No channel selected
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Click any channel card on the left to begin
               </p>
             </div>
-          ) : null}
 
-          <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
-            Cancel is one click. The keeper never moves more than the exact
-            renewal.
-          </p>
-        </aside>
+            <Button
+              className="mt-6 w-full opacity-50 cursor-not-allowed"
+              disabled
+            >
+              Select a Channel to Subscribe
+            </Button>
+
+            <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
+              Cancel is one click. The keeper never moves more than the exact renewal.
+            </p>
+          </aside>
+        )}
       </div>
 
       <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
