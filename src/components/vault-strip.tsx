@@ -36,12 +36,11 @@ export function VaultStrip() {
   const effectiveAddress = connectedAddress || address;
   const isLive = isWalletConnected || connected;
 
-  // Live on-chain balances: poll while a real wallet is connected (25s cadence).
+  // Live on-chain balances: refresh once on connect and after actions only.
+  // (No interval — the wallet re-prompts for permission on every strk20Balances call.)
   useEffect(() => {
     if (!isWalletConnected || !myWalletAccount || !connectedAddress) return;
     void refreshLiveBalances();
-    const id = setInterval(() => void refreshLiveBalances(), 25_000);
-    return () => clearInterval(id);
   }, [isWalletConnected, myWalletAccount, connectedAddress]);
 
   if (!isLive) return null;
