@@ -59,9 +59,11 @@ export default function DashboardPage() {
             reveals this address.
           </p>
         </div>
-        <Button variant="ghost" onClick={() => reset()}>
-          Reset demo
-        </Button>
+        {connected && !isWalletConnected && (
+          <Button variant="ghost" onClick={() => reset()}>
+            Reset demo
+          </Button>
+        )}
       </div>
 
       <div className="mt-8">

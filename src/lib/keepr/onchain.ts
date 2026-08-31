@@ -259,7 +259,16 @@ export function buildCancelActions(params: {
   const subIdHex = num.toHex(subId);
   const authPreimageHex = num.toHex(authPreimage);
 
+  // NOTE: the wallet rejects an invoke-only action list ("invalid request payload"),
+  // so we lead with a zero-amount withdraw to the helper. Nothing moves (amount 0),
+  // but the bundle satisfies the wallet's "must include a money action" validation.
   return [
+    {
+      type: "withdraw",
+      token,
+      amount: "0x0",
+      recipient: helper,
+    },
     {
       type: "invoke",
       contract: helper,
