@@ -261,15 +261,17 @@ export function buildCancelActions(params: {
 
   // NOTE: the wallet rejects an invoke-only action list ("invalid request payload"),
   // and it also rejects a zero-amount withdraw ("Withdraw amount must be positive").
-  // So we lead with a 1-wei withdraw to the helper: positive enough to pass wallet
-  // validation, but effectively zero money (1 wei ≈ 1e-18 STRK). The helper's cancel
-  // path ignores the helper's balance and returns empty deposits, so nothing real moves.
+  // So we lead with a 1-wei withdraw to the CONNECTED ACCOUNT (recipient = creator
+  // here resolves to the connected payout address). This satisfies wallet validation,
+  // returns the 1 wei to the user (net zero), and — crucially — leaves the helper
+  // with ZERO balance so the pool's dust-sweep has nothing to pull (a helper balance
+  // it can't approve would revert the whole tx).
   return [
     {
       type: "withdraw",
       token,
       amount: "0x1",
-      recipient: helper,
+      recipient: creator,
     },
     {
       type: "invoke",
