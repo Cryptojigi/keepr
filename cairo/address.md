@@ -15,3 +15,7 @@
 - Fee: ~3.12 STRK (paid in STRK)
 
 Do not call the echo helper.
+
+## Cancellation (full loop)
+
+- Cancel tx: `0x015e0367eb7833e71e64d436c0052f2bd3ecbd72ab358de4c368c8024c5d1235` (Cancelled event, sub_id matches the VELLUM subscribe; `ACCEPTED_ON_L2`, block 14,253,642)

@@ -28,8 +28,8 @@ export function SiteHeader() {
   const [wallet, setWallet] = useState(false);
 
   return (
-    <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-5">
+    <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base overflow-hidden">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-5">
         <Link href="/" className="shrink-0" onClick={() => setMenu(false)}>
           <KeeprWordmark />
         </Link>
@@ -64,6 +64,20 @@ export function SiteHeader() {
       </div>
       {menu ? (
         <div className="border-t border-line bg-raised md:hidden">
+          {/* Mobile Connected Balance Bar */}
+          {connected && (
+            <div className="border-b border-line bg-cream px-5 py-2.5 flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="led led-ok" aria-hidden />
+                <span className="text-subtle text-[10px] uppercase">Shielded:</span>
+                <span className="font-bold text-accent">{useKeepr.getState().shieldedStrk} STRK</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-subtle text-[10px] uppercase">Pub:</span>
+                <span className="font-bold text-ink">{useKeepr.getState().publicStrk} STRK</span>
+              </div>
+            </div>
+          )}
           <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3">
             {NAV.map((item) => (
               <Link

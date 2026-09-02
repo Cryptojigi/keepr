@@ -20,7 +20,7 @@ export function TerminalBlock({
         <span>{title}</span>
         <span className="text-accent">STRK20</span>
       </figcaption>
-      <pre className="flex-1 overflow-x-auto px-4 py-4 font-mono text-[11px] leading-6 text-cream/90 sm:text-xs">
+      <pre className="flex-1 overflow-x-auto px-4 py-4 font-mono text-[11px] leading-6 text-cream/90 sm:text-xs max-w-full">
         {lines.map((line, i) => {
           const isPrompt = line.startsWith("$");
           const isOk = line === "ok" || line === "logged" || line.endsWith("confirmed");

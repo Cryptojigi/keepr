@@ -19,9 +19,10 @@ import { VaultStrip } from "@/components/vault-strip";
 import { LoadingVault } from "@/components/loading-vault";
 import { creatorById, rateById } from "@/lib/keepr/data";
 import { formatCountdown, formatDate, formatStrk } from "@/lib/keepr/format";
-import { buildCancelActions } from "@/lib/keepr/onchain";
+import { buildCancelActions, refreshLiveBalances } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
+import { parseStarknetError } from "@/lib/keepr/errors";
 import type { Subscription } from "@/lib/keepr/types";
 
 export default function DashboardPage() {
@@ -52,16 +53,17 @@ export default function DashboardPage() {
     <main className="mx-auto max-w-6xl px-5 py-10 md:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Kicker>Vault</Kicker>
-          <h1 className="mt-3 text-4xl md:text-5xl">Your channels.</h1>
-          <p className="mt-3 max-w-xl text-base leading-relaxed text-ink">
-            Auto-renew is a session key. Cancel is one click. The proof never
-            reveals this address.
+          <Kicker>Dashboard</Kicker>
+          <h1 className="mt-3 font-display text-4xl font-bold uppercase tracking-tight text-ink md:text-5xl">
+            Active Subscriptions
+          </h1>
+          <p className="mt-3 max-w-xl text-base leading-relaxed text-ink font-prose">
+            Manage your active channels and automated renewals. Subscriptions renew autonomously via delegated session keys and can be revoked on-chain at any time.
           </p>
         </div>
         {connected && !isWalletConnected && (
           <Button variant="ghost" onClick={() => reset()}>
-            Reset demo
+            Reset Simulation
           </Button>
         )}
       </div>
@@ -72,13 +74,15 @@ export default function DashboardPage() {
 
       {active.length === 0 ? (
         <section className="mt-10 bg-raised px-5 py-12 text-center shadow-[var(--shadow-border)]">
-          <p className="kicker">Empty</p>
-          <h2 className="mt-3 text-2xl">No active channels.</h2>
-          <p className="mt-2 text-sm text-muted">
-            Shield, pick a creator, subscribe. The keeper takes it from there.
+          <p className="kicker">No Active Channels</p>
+          <h2 className="mt-3 font-display text-2xl font-bold uppercase tracking-tight text-ink">
+            No active subscriptions found
+          </h2>
+          <p className="mt-2 text-sm text-muted max-w-md mx-auto">
+            Shield your STRK tokens into a private note and choose a channel to start your first private subscription.
           </p>
           <Button asChild className="mt-6">
-            <Link href="/subscribe">Open a channel</Link>
+            <Link href="/subscribe">Explore Channels</Link>
           </Button>
         </section>
       ) : (
@@ -151,24 +155,30 @@ function ChannelRow({
             ? res
             : (res as { transaction_hash?: string; transactionHash?: string })?.transaction_hash ||
               "";
-        toast.success(
-          `Cancelled on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`,
-        );
+        toast.success("Subscription channel cancelled on-chain", {
+          description: txHash ? `Tx: ${txHash.slice(0, 14)}…` : "Cancellation confirmed on Starknet",
+          action: txHash
+            ? {
+                label: "View",
+                onClick: () => window.open(`https://starkscan.co/tx/${txHash}`, "_blank"),
+              }
+            : undefined,
+        });
+
+        setTimeout(() => {
+          void refreshLiveBalances({ fetchShielded: true });
+        }, 800);
       } else {
-        toast("Channel revoked.");
+        toast.info("Channel revoked (demo mode).");
       }
       cancel(sub.id);
       setConfirm(false);
     } catch (err: any) {
-      console.error("Cancel failed:", err);
-      const msg = err?.message || String(err);
-      if (
-        msg.includes("wallet_strk20InvokeTransaction") ||
-        msg.includes("Unknown request type")
-      ) {
-        toast.error("Standard wallets do not support STRK20 privacy actions. Please use Ready Wallet.");
+      const parsed = parseStarknetError(err);
+      if (parsed.isUserRejection) {
+        toast.info("Cancellation rejected in Ready X.");
       } else {
-        toast.error(msg || "Cancel transaction failed.");
+        toast.error(parsed.message, { description: parsed.detail });
       }
     } finally {
       setCancelling(false);

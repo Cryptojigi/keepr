@@ -34,19 +34,25 @@ export default function VerifyPage() {
   const walletAddress = useStoreWallet((s) => s.address);
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [picked, setPicked] = useState("forge");
+  const [picked, setPicked] = useState("cipher");
   const [result, setResult] = useState<VerifiedPass | null>(null);
 
-  const challenge = `keepr:gate:${picked}:strk20-demo`;
+  const challenge = `keepr:gate:${picked}:verify`;
   const creator = creatorById(picked);
 
+  const effectiveAddress = walletAddress || address;
+  const isLive = isWalletConnected || connected;
+
   async function run() {
-    const isLive = isWalletConnected || connected;
+    let current = useKeepr.getState();
+    if (!current.hasHydrated) {
+      await wait(250);
+      current = useKeepr.getState();
+    }
     if (!isLive) {
-      toast("Connect a wallet or open the vault first.");
+      toast("Open the vault or connect your wallet first.");
       return;
     }
-
     setPhase("signing");
     setResult(null);
     await wait(400);
@@ -56,7 +62,7 @@ export default function VerifyPage() {
       const localSub = subs.find((s) => s.creatorId === picked && s.active);
       const targetSubId = localSub?.id;
 
-      // 1. If Ready wallet is connected, verify strictly on-chain
+      // 1. If Ready wallet is connected, verify on-chain
       if (isWalletConnected) {
         if (targetSubId) {
           const onchainActive = await isActiveOnchain(targetSubId);
@@ -73,17 +79,15 @@ export default function VerifyPage() {
                 isOnchain: true,
               });
               setPhase("valid");
-              toast.success("Verified on-chain via KeeprSubscriptionHelper!");
               return;
             }
           }
         }
-        // When a wallet is connected and not verified on-chain, reject
         setPhase("none");
         return;
       }
 
-      // 2. Demo mode fallback only (when no live wallet is connected)
+      // 2. Demo mode fallback
       if (connected && localSub) {
         setResult({
           creatorId: picked,
@@ -97,7 +101,6 @@ export default function VerifyPage() {
         return;
       }
 
-      // 3. No active subscription found
       setPhase("none");
     } catch (err) {
       console.error("Verification check failed:", err);
@@ -128,7 +131,7 @@ export default function VerifyPage() {
                 setPicked(c.id);
                 setPhase("idle");
               }}
-              className={`h-11 px-3 font-mono text-[11px] uppercase tracking-[0.12em] ${
+              className={`h-11 px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
                 c.id === picked
                   ? "bg-accent text-cream"
                   : "bg-transparent text-muted shadow-[var(--shadow-border)] hover:bg-accent-muted"
@@ -144,8 +147,8 @@ export default function VerifyPage() {
           <p className="break-all">{challenge}</p>
           <p className="mt-3 text-cream/75">wallet</p>
           <p>
-            {connected
-              ? `${address.slice(0, 10)}… (stays in browser)`
+            {isLive && effectiveAddress
+              ? `${effectiveAddress.slice(0, 10)}… (stays in browser)`
               : "not connected"}
           </p>
         </div>

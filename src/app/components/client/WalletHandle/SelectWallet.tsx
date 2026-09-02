@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ExternalLink, Smartphone } from "lucide-react";
+import { X, ExternalLink, ShieldCheck, RefreshCw, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   walletV6,
@@ -14,48 +14,16 @@ import { createStore, type Store } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import { myFrontendProviders } from "@/utils/constants";
 import { useKeepr } from "@/lib/keepr/store";
-import { READY_URL } from "@/lib/keepr/constants";
+import { READY_STORE_URL } from "@/lib/keepr/constants";
+import { refreshLiveBalances } from "@/lib/keepr/onchain";
+import { parseStarknetError } from "@/lib/keepr/errors";
+import { formatStrk } from "@/lib/keepr/format";
 import { useStoreWallet } from "../../Wallet/walletContext";
 import { useFrontendProvider } from "../provider/providerContext";
 
 function normalizeId(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
-
-// Supported Starknet wallets for mobile guidance
-// Note: WalletConnect integration scheduled for v2
-const SUPPORTED_WALLETS = [
-  {
-    name: "Ready Wallet",
-    idKey: "ready",
-    url: "https://www.ready.co/",
-    tag: "STRK20 Shielded",
-  },
-  {
-    name: "Argent X",
-    idKey: "argent",
-    url: "https://www.argent.xyz/argent-x/",
-    tag: "Mobile & Browser",
-  },
-  {
-    name: "Braavos",
-    idKey: "braavos",
-    url: "https://braavos.app/",
-    tag: "Hardware Signer",
-  },
-  {
-    name: "OKX Wallet",
-    idKey: "okx",
-    url: "https://www.okx.com/web3",
-    tag: "Multi-Chain",
-  },
-  {
-    name: "Xverse",
-    idKey: "xverse",
-    url: "https://www.xverse.app/",
-    tag: "Bitcoin & Starknet",
-  },
-];
 
 export default function SelectWallet({
   variant = "ctaBig",
@@ -77,17 +45,19 @@ export default function SelectWallet({
   const setWalletApi = useStoreWallet((state) => state.setWalletApiList);
   const setChain = useStoreWallet((state) => state.setChain);
 
-  // Keepr Demo Store fallback
+  // Keepr live balance & demo store
   const demoConnected = useKeepr((s) => s.connected);
   const demoAddress = useKeepr((s) => s.address);
   const connectDemo = useKeepr((s) => s.connectDemo);
   const disconnectKeepr = useKeepr((s) => s.disconnect);
+  const publicStrk = useKeepr((s) => s.publicStrk);
+  const shieldedStrk = useKeepr((s) => s.shieldedStrk);
+  const isSyncingBalances = useKeepr((s) => s.isSyncingBalances);
 
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string>("");
   const [internalPickerOpen, setInternalPickerOpen] = useState(false);
   const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
 
   const pickerOpen = externalOpen !== undefined ? externalOpen : internalPickerOpen;
   const setPickerOpen = (open: boolean) => {
@@ -99,31 +69,20 @@ export default function SelectWallet({
   };
 
   useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
-      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-      setIsMobile(mobileRegex.test(userAgent) || window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  useEffect(() => {
     const store: Store = createStore({ eip1193Adapters: [] });
     setWallets(store.getWallets().slice());
     const unsub = store.subscribe((next) => setWallets(next.slice()));
     return () => unsub();
   }, []);
 
-  // Auto-reconnect to last connected wallet on page refresh
+  // Auto-reconnect on refresh
   useEffect(() => {
     if (typeof window === "undefined" || isConnected || wallets.length === 0) return;
     const lastWallet = localStorage.getItem("keepr_last_wallet");
     if (!lastWallet) return;
 
     const match = wallets.find(
-      (w) => normalizeId(w.name) === normalizeId(lastWallet),
+      (w) => normalizeId(w.name).includes("ready") || normalizeId(w.name) === normalizeId(lastWallet),
     );
     if (match) {
       walletV6
@@ -133,22 +92,21 @@ export default function SelectWallet({
             Array.isArray(permissions) &&
             permissions.includes(WALLET_API.Permission.ACCOUNTS)
           ) {
-            await handleSelectedWallet(match);
+            await handleSelectedWallet(match, false);
           }
         })
-        .catch((e) => console.log("Auto-reconnect skipped:", e));
+        .catch(() => {});
     }
   }, [wallets, isConnected]);
 
-  // Filter pickable wallets (exclude metamask snap probing and phantom Braavos adapter)
-  const pickable = wallets.filter((w) => {
+  // Find Ready X in discovered wallets
+  const readyWallet = wallets.find((w) => {
     const id = normalizeId(w.name);
-    return !id.includes("metamask") && !id.includes("braavos");
+    return id.includes("ready") || id.includes("readyx") || id.includes("readywallet");
   });
 
-  async function handleSelectedWallet(selectedWallet: WalletWithStarknetFeatures) {
+  async function handleSelectedWallet(selectedWallet: WalletWithStarknetFeatures, notify = true) {
     setMyWallet(selectedWallet);
-    // Connect with Starknet Mainnet provider (index 0)
     const myWA = await WalletAccountV6.connect(myFrontendProviders[0], selectedWallet);
     setMyWalletAccount(myWA);
 
@@ -157,9 +115,11 @@ export default function SelectWallet({
       throw new Error("This wallet is not compatible with WalletAccountV6.");
     }
 
+    let parsedAddr = "";
     if (Array.isArray(result) && result[0]) {
-      const addr = validateAndParseAddress(result[0]);
-      setAddressAccount(addr);
+      parsedAddr = validateAndParseAddress(result[0]);
+      setAddressAccount(parsedAddr);
+      useKeepr.setState({ address: parsedAddr, connected: true });
     }
 
     const isConnectedWallet: boolean = await walletV6
@@ -178,21 +138,34 @@ export default function SelectWallet({
       setCurrentFrontendProviderIndex(
         chainId === SNconstants.StarknetChainId.SN_MAIN ? 0 : 2,
       );
-      toast.success(`${selectedWallet.name} connected on Starknet Mainnet!`);
+      if (notify) {
+        toast.success(`Ready X connected`);
+      }
+
+      // Query initial shielded & public balances once upon connection
+      setTimeout(() => {
+        void refreshLiveBalances({ fetchShielded: true });
+      }, 200);
     }
     setWalletApi(await walletV6.supportedSpecs(selectedWallet));
   }
 
-  async function selectWallet(w: WalletWithStarknetFeatures) {
+  async function connectReadyWallet() {
+    if (!readyWallet) {
+      toast.error("Ready X extension not detected.");
+      return;
+    }
     setError("");
     setConnecting(true);
     try {
-      await handleSelectedWallet(w);
+      await handleSelectedWallet(readyWallet, true);
       setPickerOpen(false);
     } catch (err: any) {
-      console.error("Wallet connection failed:", err);
-      setError(err?.message ?? "Wallet connection failed.");
-      toast.error(err?.message ?? "Connection rejected.");
+      const parsed = parseStarknetError(err);
+      if (!parsed.isUserRejection) {
+        setError(parsed.detail || parsed.message);
+        toast.error(parsed.message, { description: parsed.detail });
+      }
     } finally {
       setConnecting(false);
     }
@@ -213,7 +186,7 @@ export default function SelectWallet({
   function handleEnterDemo() {
     connectDemo();
     setPickerOpen(false);
-    toast.info("Demo vault open · 400 public · 30 shielded STRK");
+    toast.info("Demo mode active · 400 Public · 30 Shielded STRK");
   }
 
   const effectiveAddress = address || (demoConnected ? demoAddress : "");
@@ -222,151 +195,156 @@ export default function SelectWallet({
     ? `${effectiveAddress.slice(0, 6)}…${effectiveAddress.slice(-4)}`
     : "";
 
-  // The restyled Keepr Wallet Picker Modal
+  // Minimal, clean Ready X Wallet Modal
   const pickerModal = pickerOpen ? (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-4 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-4 backdrop-blur-sm"
       onClick={() => !connecting && setPickerOpen(false)}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-md border border-line bg-cream p-6 shadow-[var(--shadow-border-hover)] max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-sm border border-line bg-cream p-5 sm:p-6 shadow-[var(--shadow-border-hover)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          className="absolute right-4 top-4 text-muted hover:text-ink transition-colors"
-          onClick={() => setPickerOpen(false)}
-          aria-label="Close"
-          disabled={connecting}
-        >
-          <X className="size-5" />
-        </button>
-
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Starknet Vault
-          </p>
-          <h2 className="mt-1 font-display text-2xl font-bold uppercase tracking-tight text-ink">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <h2 className="font-display text-xl font-bold uppercase tracking-tight text-ink">
             Connect Wallet
           </h2>
+          <button
+            className="text-muted hover:text-ink transition-colors"
+            onClick={() => setPickerOpen(false)}
+            aria-label="Close"
+            disabled={connecting}
+          >
+            <X className="size-5" />
+          </button>
         </div>
 
         {error ? (
-          <div className="mt-4 border border-accent/40 bg-accent-muted p-3 font-mono text-xs text-accent">
-            {error}
+          <div className="mt-3 flex items-start gap-2 border border-accent/40 bg-accent-muted p-2.5 font-mono text-xs text-accent">
+            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         ) : null}
 
-        {/* 1. All Starknet Wallets */}
-        <div className="mt-6 flex flex-col gap-2.5">
-          {SUPPORTED_WALLETS.map((sw) => {
-            const detected = wallets.find((w) => {
-              const name = normalizeId(w.name);
-              return name.includes(sw.idKey) && !name.includes("metamask");
-            });
-
-            if (detected) {
-              return (
-                <button
-                  key={sw.name}
-                  type="button"
-                  onClick={() => selectWallet(detected)}
-                  disabled={connecting}
-                  className="flex items-center justify-between border border-line bg-raised p-3.5 text-left shadow-[var(--shadow-border)] transition-all hover:bg-cream hover:border-line-hover disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-3">
-                    {detected.icon ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={detected.icon}
-                        alt=""
-                        className="size-7 rounded-sm object-contain"
-                      />
-                    ) : (
-                      <div className="size-7 bg-ink/10 flex items-center justify-center font-mono text-[10px] font-bold text-ink">
-                        {sw.name.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-display text-base font-bold uppercase tracking-tight text-ink">
-                        {sw.name}
-                      </p>
-                      <p className="font-mono text-[10px] text-accent uppercase tracking-wider">
-                        Detected
-                      </p>
-                    </div>
+        {/* Ready X Primary Action */}
+        <div className="mt-4 flex flex-col gap-2.5">
+          {readyWallet ? (
+            <button
+              type="button"
+              onClick={connectReadyWallet}
+              disabled={connecting}
+              className="flex items-center justify-between border-2 border-accent bg-raised p-3.5 text-left shadow-[var(--shadow-border)] hover:bg-cream transition-all disabled:opacity-60 group"
+            >
+              <div className="flex items-center gap-3">
+                {readyWallet.icon ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={readyWallet.icon}
+                    alt="Ready X"
+                    className="size-8 rounded-sm object-contain bg-cream p-0.5 border border-line"
+                  />
+                ) : (
+                  <div className="size-8 bg-accent text-cream flex items-center justify-center font-display text-sm font-bold">
+                    RX
                   </div>
-                  <span className="font-mono text-sm text-accent">
-                    {connecting ? "…" : "→"}
-                  </span>
-                </button>
-              );
-            }
-
-            return (
-              <a
-                key={sw.name}
-                href={sw.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between border border-line/60 bg-raised/50 p-3.5 text-left transition-all hover:bg-cream hover:border-line group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="size-7 bg-ink/5 flex items-center justify-center font-mono text-[10px] font-bold text-muted">
-                    {sw.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-display text-base font-bold uppercase tracking-tight text-ink/80 group-hover:text-ink">
-                      {sw.name}
-                    </p>
-                    <p className="font-mono text-[10px] text-muted uppercase tracking-wider">
-                      Not detected
-                    </p>
-                  </div>
+                )}
+                <div>
+                  <p className="font-display text-base font-bold uppercase tracking-tight text-ink">
+                    Ready X
+                  </p>
+                  <p className="font-mono text-[10px] text-accent uppercase tracking-wider">
+                    Detected
+                  </p>
                 </div>
-                <ExternalLink className="size-4 text-muted group-hover:text-ink transition-colors" />
-              </a>
-            );
-          })}
+              </div>
+              <span className="font-mono text-xs font-semibold text-accent uppercase tracking-wider group-hover:translate-x-0.5 transition-transform">
+                {connecting ? "Connecting…" : "Connect →"}
+              </span>
+            </button>
+          ) : (
+            <a
+              href={READY_STORE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-between border border-line bg-raised p-3.5 text-left shadow-[var(--shadow-border)] hover:bg-cream transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="size-8 bg-ink/10 text-ink flex items-center justify-center font-display text-sm font-bold">
+                  RX
+                </div>
+                <div>
+                  <p className="font-display text-base font-bold uppercase tracking-tight text-ink">
+                    Ready X
+                  </p>
+                  <p className="font-mono text-[10px] text-muted uppercase tracking-wider">
+                    Not detected
+                  </p>
+                </div>
+              </div>
+              <span className="font-mono text-xs text-muted group-hover:text-ink flex items-center gap-1">
+                Install <ExternalLink className="size-3.5" />
+              </span>
+            </a>
+          )}
         </div>
 
-        {/* 3. Fallback Demo Mode */}
-        <div className="mt-6 border-t border-line pt-4">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-subtle text-center mb-2">
-            Fallback Demo Mode
-          </p>
+        {/* Discreet Demo Fallback */}
+        <div className="mt-4 pt-3 border-t border-line text-center">
           <button
             type="button"
             onClick={handleEnterDemo}
-            className="w-full border border-dashed border-line bg-base/80 py-2.5 px-3 text-center font-mono text-xs uppercase tracking-[0.14em] text-muted hover:border-accent hover:text-accent transition-colors"
+            className="font-mono text-[11px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
           >
-            Enter Demo Vault (400 STRK)
+            Enter Demo Mode
           </button>
         </div>
       </div>
     </div>
   ) : null;
 
-  // Nav Variant (mounted in SiteHeader)
+  // Nav Variant
   if (variant === "nav") {
     if (effectiveConnected && shortAddr) {
       return (
-        <>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Live Balance Indicator */}
+          <div className="hidden sm:flex items-center gap-2 border border-line bg-raised px-2.5 py-1.5 font-mono text-xs shadow-[var(--shadow-border)]">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] uppercase text-subtle">Shielded:</span>
+              <span className="font-semibold text-accent">{formatStrk(shieldedStrk)}</span>
+            </div>
+            <span className="text-line">|</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] uppercase text-subtle">Pub:</span>
+              <span className="text-ink">{formatStrk(publicStrk)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void refreshLiveBalances({ fetchShielded: true });
+                toast.info("Refreshing wallet balances…");
+              }}
+              className="ml-1 text-muted hover:text-ink transition-colors"
+              title="Refresh balances"
+            >
+              <RefreshCw className={`size-3 ${isSyncingBalances ? "animate-spin text-accent" : ""}`} />
+            </button>
+          </div>
+
+          {/* Connected Button */}
           <button
             type="button"
             onClick={handleDisconnect}
-            className="flex h-11 items-center gap-2 border border-line bg-cream px-3 font-mono text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted transition-colors"
-            title="Click to disconnect"
+            className="flex h-10 sm:h-11 items-center gap-2 border border-line bg-cream px-2.5 sm:px-3 font-mono text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted transition-colors"
+            title="Ready X connected · Click to disconnect"
           >
             <span className="led led-ok" aria-hidden />
             <span>{shortAddr}</span>
-            <span className="hidden text-[10px] text-muted lg:inline">
-              ({isConnected ? "Connected" : "Demo"})
-            </span>
           </button>
           {pickerModal}
-        </>
+        </div>
       );
     }
 
@@ -378,16 +356,17 @@ export default function SelectWallet({
             setError("");
             setPickerOpen(true);
           }}
-          className="flex h-11 items-center border border-accent bg-accent px-4 font-mono text-xs font-medium uppercase tracking-[0.14em] text-cream shadow-[var(--shadow-border)] hover:bg-accent/90 transition-colors"
+          className="flex h-10 sm:h-11 items-center gap-1.5 border border-accent bg-accent px-3.5 sm:px-4 font-mono text-xs font-medium uppercase tracking-[0.14em] text-cream shadow-[var(--shadow-border)] hover:bg-accent-hover transition-colors"
         >
-          Connect
+          <ShieldCheck className="size-3.5 shrink-0" />
+          <span>Connect</span>
         </button>
         {pickerModal}
       </>
     );
   }
 
-  // Gate Variant (used exclusively by WalletModal dialog)
+  // Gate Variant
   if (variant === "gate") {
     return pickerModal;
   }
@@ -401,9 +380,10 @@ export default function SelectWallet({
           setError("");
           setPickerOpen(true);
         }}
-        className="flex h-12 items-center justify-center border border-accent bg-accent px-6 font-mono text-xs font-medium uppercase tracking-[0.16em] text-cream shadow-[var(--shadow-border)] hover:bg-accent/90 transition-colors"
+        className="flex h-12 items-center justify-center gap-2 border border-accent bg-accent px-6 font-mono text-xs font-medium uppercase tracking-[0.16em] text-cream shadow-[var(--shadow-border)] hover:bg-accent-hover transition-colors"
       >
-        {effectiveConnected ? `Connected · ${shortAddr}` : "Connect Wallet"}
+        <ShieldCheck className="size-4" />
+        <span>{effectiveConnected ? `Connected · ${shortAddr}` : "Connect Ready X"}</span>
       </button>
       {pickerModal}
     </>

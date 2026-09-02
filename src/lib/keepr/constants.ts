@@ -21,6 +21,11 @@ export const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 export const REPO_URL = "https://github.com/Cryptojigi/keepr";
 export const STRK20_URL = "https://strk20.starknet.io";
 export const RFP_URL = "https://strk20.starknet.io/rfp/private-subscriptions";
+export const ETH_TOKEN =
+  "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7";
+
 export const READY_URL = "https://www.ready.co";
+export const READY_STORE_URL =
+  "https://chromewebstore.google.com/detail/ready-wallet/hkeaflfmepelbhgkhkbfmfbkkblhcfkn";
 
 export const NETWORK_LABEL = "Starknet Mainnet";

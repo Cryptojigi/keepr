@@ -45,8 +45,8 @@ function CodeBlock({ children, title }: { children: string; title?: string }) {
           {title}
         </div>
       )}
-      <pre className="overflow-x-auto bg-ink p-4 font-mono text-[0.8125rem] leading-relaxed text-cream/90">
-        <code>{children.trim()}</code>
+      <pre className="overflow-x-auto bg-ink p-4 font-mono text-[0.8125rem] leading-relaxed text-cream/90 max-w-full">
+        <code className="block min-w-0">{children.trim()}</code>
       </pre>
     </div>
   );
@@ -128,10 +128,10 @@ export default function DocsPage() {
         </div>
       </div>
 
-      <div className="flex gap-10">
+      <div className="flex gap-10 min-w-0">
         <Sidebar active={active} />
 
-        <article className="min-w-0 flex-1">
+        <article className="min-w-0 flex-1 overflow-hidden">
 
           <DocSection id="overview">
             <Anchor id="what-is-keepr" />
@@ -252,7 +252,7 @@ export default function DocsPage() {
             <P>
               The Keeper is a TypeScript daemon that runs on any internet-connected machine. It holds session keys for all active subscriptions and ticks every 60 seconds, submitting renewal transactions so payers never pay gas for renewals.
             </P>
-            <CodeBlock title="Start the keeper daemon">{`cd keeper/\ncp .env.example .env\n# Configure SESSION_KEY, RPC_URL, HELPER_ADDRESS\n\nnpm install && npm run start\n\n# keeper tick 00:00 — scanning 3 active channels\n# renew  0x7a1c… forge.quota    12 STRK   ok\n# skip   0x3b9d… aegis.calls    dry note (0 shielded)\n# renew  0x1c4f… vellum.quota   2 STRK    ok`}</CodeBlock>
+            <CodeBlock title="Start the keeper daemon">{`cd keeper/\ncp .env.example .env\n# Configure SESSION_KEY, RPC_URL, HELPER_ADDRESS\n\nnpm install && npm run start\n\n# keeper tick 00:00 - scanning 3 active channels\n# renew  0x7a1c… cipher.brief   15 STRK   ok\n# skip   0x3b9d… aegis.agent    dry note (0 shielded)\n# renew  0x1c4f… vellum.studio  10 STRK   ok`}</CodeBlock>
 
             <Anchor id="renewal" />
             <H3>Auto-renewal</H3>
@@ -280,9 +280,9 @@ export default function DocsPage() {
             <Anchor id="proof-gate" />
             <H2>Verify</H2>
             <P>
-              The Verify page and gate API let any third-party service — a Discord bot, a Telegram gate, a private API — confirm that a user holds an active subscription without learning their wallet address.
+              The Verify page and gate API let third-party services (such as Discord bots, Telegram gates, and private APIs) confirm that a user holds an active subscription without learning their wallet address.
             </P>
-            <CodeBlock title="Proof gate flow">{`// 1. Gate issues challenge\nchallenge = "keepr:gate:forge.api:strk20-demo"\n\n// 2. Payer signs in-browser (no wallet popup)\nsignature = wallet.sign(challenge)\n\n// 3. Gate checks on-chain\nresult = helper.verify(sub_id, signature, challenge)\n// → { tier: 1, expiry: 1756339200, active: true }\n\n// The gate never sees the wallet address.`}</CodeBlock>
+            <CodeBlock title="Proof gate flow">{`// 1. Gate issues challenge\nchallenge = "keepr:gate:cipher.brief:verify"\n\n// 2. Payer signs in-browser (no wallet popup)\nsignature = wallet.sign(challenge)\n\n// 3. Gate checks on-chain\nresult = helper.verify(sub_id, signature, challenge)\n// → { tier: 1, expiry: 1756339200, active: true }\n\n// The gate never sees the wallet address.`}</CodeBlock>
 
             <Anchor id="viewing-keys" />
             <H3>Viewing keys</H3>

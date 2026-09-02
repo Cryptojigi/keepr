@@ -1,6 +1,6 @@
 import { hash, num, RpcProvider, validateAndParseAddress } from "starknet";
 import type { WALLET_API } from "@starknet-io/types-js";
-import { HELPER_MAINNET, STRK_TOKEN } from "./constants";
+import { ETH_TOKEN, HELPER_MAINNET, STRK_TOKEN } from "./constants";
 
 export interface OnchainSubscriptionRecord {
   creator: string;
@@ -14,7 +14,7 @@ export interface OnchainSubscriptionRecord {
 }
 
 /**
- * Returns the active Starknet Mainnet RPC provider.
+ * Returns the active Starknet Mainnet RPC provider with high-reliability fallback nodes.
  */
 export function getMainnetProvider(): RpcProvider {
   const rawKey = process.env.NEXT_PUBLIC_PROVIDER_URL || "";
@@ -68,36 +68,144 @@ export async function isAccountDeployed(address: string): Promise<boolean> {
   }
 }
 
+
 /**
- * Refresh the user's live STRK balances (public + shielded) into the store.
- * Public = STRK token balanceOf; shielded = wallet's STRK20 pool balance.
- * Safe to call anytime; silently no-ops when no wallet is connected.
+ * Query standard ERC-20 token balance via RPC (returns human-readable token count).
  */
-export async function refreshLiveBalances(): Promise<void> {
-  const { useKeepr } = await import("@/lib/keepr/store");
-  const { myWalletAccount, address } =
-    (await import("@/app/components/Wallet/walletContext")).useStoreWallet.getState();
-  if (!myWalletAccount || !address) return;
+export async function queryErc20Balance(
+  tokenAddress: string,
+  accountAddress: string,
+): Promise<number> {
+  if (!accountAddress) return 0;
   try {
-    const entries: any[] = await myWalletAccount.strk20Balances([STRK_TOKEN]);
-    const strkEntry = entries.find(
-      (e: any) => (e?.token || e?.[0] || "").toLowerCase() === STRK_TOKEN.toLowerCase(),
-    );
-    const shieldedRaw = strkEntry ? (strkEntry.balance ?? strkEntry.amount ?? strkEntry[1]) : 0n;
-    const shieldedStrk = Number(BigInt(shieldedRaw ?? 0n)) / 1e18;
-    const balRes = await getMainnetProvider().callContract({
-      contractAddress: STRK_TOKEN,
+    const provider = getMainnetProvider();
+    const cleanAccount = validateAndParseAddress(accountAddress);
+    const res = await provider.callContract({
+      contractAddress: tokenAddress,
       entrypoint: "balanceOf",
-      calldata: [address],
+      calldata: [cleanAccount],
     });
-    const low = BigInt(balRes[0]);
-    const high = BigInt(balRes[1] ?? 0n);
-    const publicStrk = Number((high << 128n) | low) / 1e18;
-    useKeepr.setState({ publicStrk, shieldedStrk });
-  } catch (err) {
-    console.warn("refreshLiveBalances failed:", err);
+    if (!res || res.length === 0) return 0;
+    const low = BigInt(res[0]);
+    const high = BigInt(res[1] ?? 0n);
+    const totalWei = (high << 128n) | low;
+    return Number(totalWei) / 1e18;
+  } catch (e) {
+    console.warn(`queryErc20Balance failed for ${tokenAddress}:`, e);
+    return 0;
   }
 }
+
+/**
+ * Query the STRK20 Privacy Pool shielded balance from Ready Wallet.
+ * Requests [STRK_TOKEN, ETH_TOKEN] so all tokens are authorized cleanly in a single prompt.
+ */
+export async function queryShieldedStrk20Balance(walletAccount: any): Promise<number> {
+  if (!walletAccount || typeof walletAccount.strk20Balances !== "function") {
+    return 0;
+  }
+  try {
+    const entries: any = await walletAccount.strk20Balances([STRK_TOKEN, ETH_TOKEN]);
+    if (!entries) return 0;
+
+    let rawAmount: bigint | string | number | null = null;
+
+    if (Array.isArray(entries)) {
+      const strkEntry = entries.find((e: any) => {
+        if (typeof e === "string") return false;
+        const tok = (e?.token || e?.tokenAddress || e?.[0] || "").toLowerCase();
+        return (
+          tok === STRK_TOKEN.toLowerCase() ||
+          tok.includes(STRK_TOKEN.slice(2, 10).toLowerCase())
+        );
+      }) ?? entries[0];
+
+      if (strkEntry) {
+        rawAmount =
+          strkEntry.balance ??
+          strkEntry.amount ??
+          strkEntry.shieldedAmount ??
+          strkEntry[1] ??
+          0n;
+      }
+    } else if (typeof entries === "object") {
+      const cleanStrk = STRK_TOKEN.toLowerCase();
+      for (const [key, val] of Object.entries(entries)) {
+        if (key.toLowerCase() === cleanStrk || key.toLowerCase().includes("strk")) {
+          rawAmount =
+            (val as any)?.balance ?? (val as any)?.amount ?? (val as any) ?? 0n;
+          break;
+        }
+      }
+    }
+
+    if (rawAmount !== null && rawAmount !== undefined) {
+      const wei = BigInt(
+        typeof rawAmount === "string" && rawAmount.startsWith("0x")
+          ? rawAmount
+          : String(rawAmount || 0),
+      );
+      return Number(wei) / 1e18;
+    }
+    return 0;
+  } catch (err) {
+    console.warn("queryShieldedStrk20Balance notice:", err);
+    return 0;
+  }
+}
+
+/**
+ * Refresh the user's live STRK balances (public, shielded, and ETH) into the store.
+ * - Public STRK and ETH are queried directly via RPC (completely silent, no extension popup).
+ * - Shielded STRK is ONLY queried when fetchShielded is true (connect, post-transaction, manual Sync).
+ *   This avoids repetitive 'Share private balances' security dialog prompts from Ready X.
+ */
+export async function refreshLiveBalances(options: { fetchShielded?: boolean } = {}): Promise<void> {
+  const { fetchShielded = false } = options;
+  const { useKeepr } = await import("@/lib/keepr/store");
+  const { myWalletAccount, address, isConnected } =
+    (await import("@/app/components/Wallet/walletContext")).useStoreWallet.getState();
+
+  const currentAddress = address || useKeepr.getState().address;
+  if (!currentAddress || (!isConnected && !useKeepr.getState().connected)) {
+    return;
+  }
+
+  useKeepr.setState({ isSyncingBalances: true });
+
+  try {
+    // 1. Fetch transparent balances concurrently via Starknet RPC (no popup)
+    const [publicStrk, ethBalance] = await Promise.all([
+      queryErc20Balance(STRK_TOKEN, currentAddress),
+      queryErc20Balance(ETH_TOKEN, currentAddress),
+    ]);
+
+    // 2. Fetch shielded STRK balance from Ready Wallet only when requested
+    let shieldedStrk = useKeepr.getState().shieldedStrk;
+    if (fetchShielded && myWalletAccount && isConnected) {
+      try {
+        shieldedStrk = await queryShieldedStrk20Balance(myWalletAccount);
+      } catch (err) {
+        console.warn("Shielded balance fetch skipped:", err);
+      }
+    }
+
+    // 3. Update store atomically
+    useKeepr.setState({
+      address: currentAddress,
+      publicStrk: Math.round(publicStrk * 100) / 100,
+      shieldedStrk: Math.round(shieldedStrk * 100) / 100,
+      ethBalance: Math.round(ethBalance * 10000) / 10000,
+      lastBalanceSync: Date.now(),
+      isSyncingBalances: false,
+    });
+  } catch (err) {
+    console.warn("refreshLiveBalances error:", err);
+    useKeepr.setState({ isSyncingBalances: false });
+  }
+}
+
+
 
 /**
  * Query is_active(sub_id) on the live KeeprSubscriptionHelper contract on Mainnet.

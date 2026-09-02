@@ -10,6 +10,9 @@ type KeeprStore = {
   address: string;
   publicStrk: number;
   shieldedStrk: number;
+  ethBalance: number;
+  isSyncingBalances: boolean;
+  lastBalanceSync: number;
   sessionKey: boolean;
   subs: Subscription[];
   creatorUnlocked: boolean;
@@ -21,6 +24,8 @@ type KeeprStore = {
   connectDemo: () => void;
   disconnect: () => void;
   setBusy: (v: string | null) => void;
+  setSyncingBalances: (isSyncing: boolean) => void;
+  setLiveBalances: (publicStrk: number, shieldedStrk: number, ethBalance?: number) => void;
   shield: (amount: number) => string;
   unshield: (amount: number) => string;
   subscribe: (creatorId: string, tier: TierId) => Subscription;
@@ -56,6 +61,9 @@ const initial = {
   address: "",
   publicStrk: 0,
   shieldedStrk: 0,
+  ethBalance: 0,
+  isSyncingBalances: false,
+  lastBalanceSync: 0,
   sessionKey: false,
   subs: [] as Subscription[],
   creatorUnlocked: false,
@@ -76,6 +84,8 @@ export const useKeepr = create<KeeprStore>()(
           address: DEMO_ADDRESS,
           publicStrk: 400,
           shieldedStrk: 30,
+          ethBalance: 0.25,
+          lastBalanceSync: Date.now(),
           lastError: null,
         }),
       disconnect: () =>
@@ -84,9 +94,18 @@ export const useKeepr = create<KeeprStore>()(
           address: "",
           publicStrk: 0,
           shieldedStrk: 0,
+          ethBalance: 0,
           sessionKey: false,
         }),
       setBusy: (v) => set({ busy: v }),
+      setSyncingBalances: (isSyncing) => set({ isSyncingBalances: isSyncing }),
+      setLiveBalances: (publicStrk, shieldedStrk, ethBalance) =>
+        set((state) => ({
+          publicStrk: round2(publicStrk),
+          shieldedStrk: round2(shieldedStrk),
+          ...(typeof ethBalance === "number" ? { ethBalance: round4(ethBalance) } : {}),
+          lastBalanceSync: Date.now(),
+        })),
       shield: (amount) => {
         const { publicStrk, shieldedStrk, connected } = get();
         if (!connected) throw new Error("Vault closed.");
@@ -250,4 +269,8 @@ function ratesOrDefault(
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+function round4(n: number) {
+  return Math.round(n * 10000) / 10000;
 }

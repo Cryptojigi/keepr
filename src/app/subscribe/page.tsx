@@ -16,9 +16,11 @@ import {
   computeAuthCommit,
   computeSubId,
   isAccountDeployed,
+  refreshLiveBalances,
 } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
+import { parseStarknetError } from "@/lib/keepr/errors";
 import type { Creator, TierId } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +46,7 @@ export default function SubscribePage() {
   const walletObj = useStoreWallet((s) => s.StarknetWalletObject);
   const isReadyWallet = walletObj?.name
     ? walletObj.name.toLowerCase().includes("ready")
-    : true; // default true if extension name is generic
+    : true;
 
   const creatorRates = useKeepr((s) => s.creatorRates);
   const [picked, setPicked] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function SubscribePage() {
 
   async function onSubscribe() {
     if (!creator || !selectedTier) {
-      toast("Please select a channel first.");
+      toast.error("Please select a channel first.");
       return;
     }
     if (!isLive) {
@@ -78,20 +80,20 @@ export default function SubscribePage() {
       return;
     }
     if (already) {
-      toast("Already subscribed to this channel.");
+      toast.info("You already have an active subscription to this channel.");
       return;
     }
     setBusy("subscribe");
     try {
       // 1. Real on-chain flow when Ready wallet is connected
       if (isWalletConnected && myWalletAccount && connectedAddress) {
-        toast("Initiating on-chain subscribe via Privacy Pool…");
+        toast("Initiating on-chain subscription via Privacy Pool…");
 
-        // Verify the wallet account is actually deployed on-chain
+        // Verify the wallet account is deployed on-chain
         const deployed = await isAccountDeployed(connectedAddress);
         if (!deployed) {
           toast.error(
-            "Your Starknet wallet isn't deployed/activated yet. Activate it first (send it a small STRK top-up or use activation in your wallet), then retry.",
+            "Account not activated. Please deposit STRK to your wallet to activate it on Starknet.",
           );
           return;
         }
@@ -132,7 +134,15 @@ export default function SubscribePage() {
               (res as { transaction_hash?: string; transactionHash?: string })?.transactionHash ||
               "";
 
-        toast.success(`Subscribed on-chain! Tx: ${txHash ? `${txHash.slice(0, 12)}…` : "Submitted"}`);
+        toast.success(`Subscribed to ${creator.name}!`, {
+          description: txHash ? `Tx: ${txHash.slice(0, 14)}…` : "Subscription confirmed on-chain",
+          action: txHash
+            ? {
+                label: "View",
+                onClick: () => window.open(`https://starkscan.co/tx/${txHash}`, "_blank"),
+              }
+            : undefined,
+        });
 
         // Record in store
         const now = Date.now();
@@ -157,49 +167,35 @@ export default function SubscribePage() {
           ],
         }));
 
+        setTimeout(() => {
+          void refreshLiveBalances({ fetchShielded: true });
+        }, 800);
+
         router.push("/dashboard");
         return;
       }
 
-      // 2. Simulated / Demo fallback flow
+      // 2. Simulated flow fallback
       if (shortfall > 0) {
         if (publicStrk < shortfall) {
-          toast("Not enough public STRK to shield the remainder.");
+          toast.error("Not enough public STRK in your wallet to cover the note.");
           return;
         }
         await wait(500);
         shield(shortfall);
-        toast(`Shielded ${shortfall} STRK to cover the note.`);
+        toast.info(`Shielded ${shortfall} STRK to cover the note.`);
       }
       if (!sessionKey) grantSessionKey();
       await wait(900);
       const sub = subscribe(creator.id, selectedTier.id);
-      toast(`Channel open · ${sub.txHash.slice(0, 12)}…`);
+      toast.success(`Subscribed to ${creator.name}!`);
       router.push("/dashboard");
     } catch (e: any) {
-      console.error("Subscribe error:", e);
-      const msg = e?.message || String(e);
-      if (
-        msg.includes("wallet_strk20InvokeTransaction") ||
-        msg.includes("Unknown request type")
-      ) {
-        toast.error(
-          "OKX / standard wallets do not support STRK20 privacy pools. Please switch to Ready Wallet for live shielded subscriptions.",
-        );
-      } else if (msg.includes("NOT_REGISTERED")) {
-        toast.error(
-          "STRK20 registration required: your wallet hasn't registered with the privacy pool yet. Open your Ready wallet and perform one 'Shield' from the wallet itself (it registers automatically), then retry here.",
-        );
-      } else if (
-        msg.includes("UNKNOWN_ERROR") ||
-        msg.includes("insufficient") ||
-        msg.includes("User abort")
-      ) {
-        toast.error(
-          "Ready wallet error: Your Ready wallet must be funded with STRK on Starknet Mainnet to cover the subscription note and gas.",
-        );
+      const parsed = parseStarknetError(e);
+      if (parsed.isUserRejection) {
+        toast.info("Subscription cancelled in Ready X.");
       } else {
-        toast.error(msg || "Transaction rejected or failed.");
+        toast.error(parsed.message, { description: parsed.detail });
       }
     } finally {
       setBusy(null);
@@ -216,11 +212,12 @@ export default function SubscribePage() {
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 md:py-14">
-      <Kicker>Subscribe</Kicker>
-      <h1 className="mt-3 text-4xl md:text-5xl">Pick a channel.</h1>
-      <p className="mt-3 max-w-xl text-base leading-relaxed text-ink">
-        The creator set these rates. The helper will not over-charge. Your
-        address is stored as a hash — never in the clear.
+      <Kicker>Subscriptions</Kicker>
+      <h1 className="mt-3 font-display text-4xl font-bold uppercase tracking-tight text-ink md:text-5xl">
+        Choose a Channel
+      </h1>
+      <p className="mt-3 max-w-xl text-base leading-relaxed text-ink font-prose">
+        Subscriptions are paid from your private shielded note on Starknet. Your wallet address is hashed on-chain with a secret salt and never stored in the clear.
       </p>
 
       <div className="mt-8">
@@ -251,7 +248,7 @@ export default function SubscribePage() {
             <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight">
               {creator.name}
             </h2>
-            <p className="mt-1 font-mono text-xs text-muted">{creator.handle}</p>
+            <p className="mt-1 font-mono text-xs text-muted">@{creator.handle}</p>
 
             <div className="mt-5 flex flex-col gap-2">
               {rates.map((t) => (
@@ -281,34 +278,34 @@ export default function SubscribePage() {
 
             <dl className="mt-5 space-y-2 border-t border-line pt-4 font-mono text-xs">
               <Row
-                k="Charge"
+                k="Monthly Rate"
                 v={`${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
               />
-              <Row k="Period" v="30 days" />
+              <Row k="Duration" v="30 days" />
               <Row
-                k="Shielded"
+                k="Shielded Note"
                 v={`${formatStrk(shieldedStrk)} STRK (~${formatStrkUsd(shieldedStrk)})`}
               />
               <Row
-                k="To shield"
+                k="Required Top-up"
                 v={
                   shortfall > 0
                     ? `${formatStrk(shortfall)} STRK (~${formatStrkUsd(shortfall)})`
-                    : "—"
+                    : "None (sufficient note balance)"
                 }
               />
-              <Row k="Session" v={sessionKey ? "Granted" : "Will grant"} />
+              <Row k="Auto-Renew" v={sessionKey ? "Enabled via Session Key" : "Manual monthly renewal"} />
             </dl>
 
             <Button
-              className="mt-5 w-full"
+              className="mt-5 w-full h-11"
               onClick={() => void onSubscribe()}
               disabled={!!busy || already}
             >
               {already
-                ? "Already open"
+                ? "Channel already active"
                 : busy
-                  ? "Submitting"
+                  ? "Processing subscription…"
                   : `Subscribe · ${formatStrk(selectedTier.strk)} STRK (~${formatStrkUsd(selectedTier.strk)})`}
             </Button>
 
@@ -316,14 +313,13 @@ export default function SubscribePage() {
               <div className="mt-3 border border-line bg-raised p-3 font-mono text-[11px] leading-relaxed text-ink">
                 <p className="text-accent font-semibold uppercase tracking-wider">STRK20 Privacy Pool</p>
                 <p className="mt-1 text-muted">
-                  Live on-chain shielded notes require <strong>Ready Wallet</strong> (for client-side ZK proofs). Standard wallets like OKX/Argent do not support STRK20 privacy pools.
+                  Live on-chain shielded notes require <strong>Ready Wallet</strong> for client-side zero-knowledge proofs.
                 </p>
               </div>
             ) : null}
 
             <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
-              Cancel is one click. The keeper never moves more than the exact
-              renewal.
+              Subscriptions can be cancelled on-chain at any time. Keepers cannot withdraw more than the configured tier rate.
             </p>
           </aside>
         ) : (
@@ -346,14 +342,14 @@ export default function SubscribePage() {
             </div>
 
             <Button
-              className="mt-6 w-full opacity-50 cursor-not-allowed"
+              className="mt-6 w-full opacity-50 cursor-not-allowed h-11"
               disabled
             >
               Select a Channel to Subscribe
             </Button>
 
             <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
-              Cancel is one click. The keeper never moves more than the exact renewal.
+              Subscriptions can be cancelled on-chain at any time.
             </p>
           </aside>
         )}
@@ -393,17 +389,17 @@ function CreatorCard({
           {creator.category}
         </p>
         {subscribed ? (
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
-            Open
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent font-bold">
+            Active
           </span>
         ) : null}
       </div>
       <h3 className="mt-2 font-display text-xl font-bold uppercase tracking-tight">
         {creator.name}
       </h3>
-      <p className="mt-2 text-sm leading-relaxed text-ink">{creator.blurb}</p>
+      <p className="mt-2 text-sm leading-relaxed text-ink font-prose">{creator.blurb}</p>
       <p className="mt-4 font-mono text-[11px] tabular-nums text-subtle">
-        {creator.subscribers} shielded · {formatStrk(creator.mrrStrk)} STRK MRR
+        {creator.subscribers} subscribers · {formatStrk(creator.mrrStrk)} STRK MRR
         <span className="ml-1 text-muted">(~{formatStrkUsd(creator.mrrStrk)})</span>
       </p>
     </button>
@@ -414,7 +410,7 @@ function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <dt className="uppercase tracking-[0.14em] text-subtle">{k}</dt>
-      <dd className="tabular-nums text-ink">{v}</dd>
+      <dd className="tabular-nums text-ink font-medium">{v}</dd>
     </div>
   );
 }

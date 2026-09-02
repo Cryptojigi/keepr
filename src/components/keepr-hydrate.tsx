@@ -2,8 +2,12 @@
 
 import { useEffect } from "react";
 import { useKeepr } from "@/lib/keepr/store";
+import { useRealtimeBalances } from "@/lib/keepr/use-realtime-balances";
 
 export function KeeprHydrate() {
+  // Global real-time wallet balance synchronization
+  useRealtimeBalances(8000);
+
   useEffect(() => {
     const persist = useKeepr.persist;
     const unsub = persist.onFinishHydration(() => {
@@ -17,3 +21,4 @@ export function KeeprHydrate() {
   }, []);
   return null;
 }
+
