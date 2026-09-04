@@ -1,4 +1,18 @@
+import { validateAndParseAddress } from "starknet";
 import type { Creator, CreatorRate, IncomeReceipt, KeeperEvent, Tier } from "./types";
+
+/**
+ * Checksummed Starknet address comparison.
+ * Normalizes leading zeros, hex case, and handles edge cases safely.
+ */
+export function isAddressEqual(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  try {
+    return validateAndParseAddress(a) === validateAndParseAddress(b);
+  } catch {
+    return a.toLowerCase().trim() === b.toLowerCase().trim();
+  }
+}
 
 export const TIERS: Tier[] = [
   {
@@ -104,6 +118,8 @@ export const CREATORS: Creator[] = [
     subscribers: 86,
     mrrStrk: 2150,
     address: "0x05b2b2b1a8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1",
+    isDemo: true,
+    discoverable: true,
   },
   {
     id: "cipher",
@@ -115,6 +131,8 @@ export const CREATORS: Creator[] = [
     subscribers: 214,
     mrrStrk: 4280,
     address: "0x02a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+    isDemo: true,
+    discoverable: true,
   },
   {
     id: "archive",
@@ -126,6 +144,8 @@ export const CREATORS: Creator[] = [
     subscribers: 143,
     mrrStrk: 3575,
     address: "0x04e1a91c7b3d8f2a6c90e5d4b1f8a7c3e2d9b0a6f4c8e1d7a3b5c9e0f2d4a6b8",
+    isDemo: true,
+    discoverable: true,
   },
   {
     id: "vellum",
@@ -137,6 +157,8 @@ export const CREATORS: Creator[] = [
     subscribers: 97,
     mrrStrk: 1940,
     address: "0x01c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2",
+    isDemo: true,
+    discoverable: true,
   },
 ];
 

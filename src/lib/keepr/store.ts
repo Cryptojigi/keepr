@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEMO_ADDRESS, PERIOD_MS } from "./constants";
-import { cloneRates, creatorById, rateById } from "./data";
-import type { CreatorRate, Subscription, TierId } from "./types";
+import { cloneRates, creatorById, rateById, CREATORS } from "./data";
+import type { Creator, CreatorRate, Subscription, TierId } from "./types";
 
 type KeeprStore = {
   hasHydrated: boolean;
@@ -15,6 +15,7 @@ type KeeprStore = {
   lastBalanceSync: number;
   sessionKey: boolean;
   subs: Subscription[];
+  customCreators: Creator[];
   creatorUnlocked: boolean;
   activeCreatorId: string;
   creatorRates: Record<string, CreatorRate[]>;
@@ -29,6 +30,19 @@ type KeeprStore = {
   shield: (amount: number) => string;
   unshield: (amount: number) => string;
   subscribe: (creatorId: string, tier: TierId) => Subscription;
+  createChannel: (channel: {
+    name: string;
+    handle: string;
+    category: string;
+    blurb: string;
+    payoutAddress: string;
+    ownerAddress: string;
+    rates: CreatorRate[];
+    discoverable?: boolean;
+    serviceUrl?: string;
+  }) => Creator;
+  updateChannel: (creatorId: string, patch: Partial<Creator>) => void;
+  archiveChannel: (creatorId: string) => void;
   cancel: (subId: string) => void;
   setAutoRenew: (subId: string, on: boolean) => void;
   grantSessionKey: () => void;
@@ -66,6 +80,7 @@ const initial = {
   lastBalanceSync: 0,
   sessionKey: false,
   subs: [] as Subscription[],
+  customCreators: [] as Creator[],
   creatorUnlocked: false,
   activeCreatorId: "archive",
   creatorRates: cloneRates(),
@@ -132,15 +147,71 @@ export const useKeepr = create<KeeprStore>()(
         });
         return hash;
       },
+      createChannel: (params) => {
+        const rawId = params.handle
+          .replace(/^@/, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9_.-]/g, "-")
+          .trim();
+        const cleanId = rawId || `ch_${Date.now()}`;
+
+        const newChannel: Creator = {
+          id: cleanId,
+          name: params.name.trim(),
+          handle: params.handle.startsWith("@") ? params.handle.trim() : `@${params.handle.replace(/^@/, "").trim()}`,
+          category: params.category.trim() || "General",
+          blurb: params.blurb.trim() || "Private on-chain subscription channel.",
+          subscribers: 0,
+          mrrStrk: 0,
+          address: params.payoutAddress,
+          ownerAddress: params.ownerAddress,
+          discoverable: params.discoverable ?? true,
+          serviceUrl: params.serviceUrl?.trim() || undefined,
+          archived: false,
+          isCustom: true,
+          isDemo: false,
+          createdAt: Date.now(),
+        };
+
+        const existing = get().customCreators;
+        const customCreators = [newChannel, ...existing.filter((c) => c.id !== cleanId)];
+        const creatorRates = {
+          ...get().creatorRates,
+          [cleanId]: params.rates,
+        };
+
+        set({
+          customCreators,
+          creatorRates,
+          activeCreatorId: cleanId,
+          creatorUnlocked: true,
+        });
+
+        return newChannel;
+      },
+      updateChannel: (creatorId, patch) => {
+        const customCreators = get().customCreators.map((c) =>
+          c.id === creatorId ? { ...c, ...patch } : c
+        );
+        set({ customCreators });
+      },
+      archiveChannel: (creatorId) => {
+        const customCreators = get().customCreators.map((c) =>
+          c.id === creatorId ? { ...c, archived: true, discoverable: false } : c
+        );
+        set({ customCreators });
+      },
       subscribe: (creatorId, tierId) => {
-        const { connected, shieldedStrk, subs, sessionKey, creatorRates } = get();
+        const { connected, shieldedStrk, subs, sessionKey, creatorRates, customCreators } = get();
         if (!connected) throw new Error("Vault closed.");
-        const creator = creatorById(creatorId);
+        const creator = customCreators.find((c) => c.id === creatorId) ?? creatorById(creatorId);
         if (!creator) throw new Error("Unknown channel.");
+        if (creator.archived) throw new Error("This channel is archived and no longer accepting subscriptions.");
         if (subs.some((s) => s.creatorId === creatorId && s.active)) {
           throw new Error("Already subscribed to this channel.");
         }
-        const rate = rateById(creatorId, tierId, creatorRates);
+        const rates = creatorRates[creatorId] ?? cloneRates().archive;
+        const rate = rates.find((r) => r.id === tierId) ?? rates[0];
         if (shieldedStrk < rate.strk) {
           throw new Error(
             `Need ${rate.strk} shielded STRK. Shield the remainder first.`,
@@ -158,6 +229,8 @@ export const useKeepr = create<KeeprStore>()(
           active: true,
           autoRenew: sessionKey,
           txHash: txHash(),
+          creatorAddress: creator.address,
+          serviceUrl: creator.serviceUrl,
         };
         set({
           shieldedStrk: round2(shieldedStrk - rate.strk),
@@ -239,6 +312,7 @@ export const useKeepr = create<KeeprStore>()(
         set({
           ...initial,
           creatorRates: cloneRates(),
+          customCreators: [],
           hasHydrated: true,
         }),
     }),
@@ -252,6 +326,7 @@ export const useKeepr = create<KeeprStore>()(
         shieldedStrk: s.shieldedStrk,
         sessionKey: s.sessionKey,
         subs: s.subs,
+        customCreators: s.customCreators,
         creatorUnlocked: s.creatorUnlocked,
         activeCreatorId: s.activeCreatorId,
         creatorRates: s.creatorRates,
@@ -259,6 +334,21 @@ export const useKeepr = create<KeeprStore>()(
     },
   ),
 );
+
+/**
+ * Returns all available channels: custom user channels (demo registry in localStorage) + default showcase channels.
+ */
+export function getAllCreators(customCreators: Creator[] = []): Creator[] {
+  // Filter out archived channels unless explicitly requested
+  return [...customCreators.filter((c) => !c.archived), ...CREATORS];
+}
+
+/**
+ * Find creator by ID from either custom creators or default showcase creators.
+ */
+export function findCreator(id: string, customCreators: Creator[] = []): Creator | undefined {
+  return customCreators.find((c) => c.id === id) ?? creatorById(id);
+}
 
 function ratesOrDefault(
   book: Record<string, CreatorRate[]>,

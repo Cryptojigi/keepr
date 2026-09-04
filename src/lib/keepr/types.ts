@@ -25,6 +25,13 @@ export type Creator = {
   subscribers: number;
   mrrStrk: number;
   address: string;
+  ownerAddress?: string;
+  discoverable?: boolean;
+  serviceUrl?: string;
+  archived?: boolean;
+  isCustom?: boolean;
+  isDemo?: boolean;
+  createdAt?: number;
 };
 
 export type Subscription = {
@@ -41,6 +48,7 @@ export type Subscription = {
   authSecret?: string;
   salt?: string;
   creatorAddress?: string;
+  serviceUrl?: string;
 };
 
 export type KeeperEvent = {
