@@ -40,7 +40,7 @@ export default function Home() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-line flex items-center min-h-[72dvh] sm:min-h-[80dvh] md:min-h-[78dvh]">
+    <section className="relative overflow-hidden border-b border-line flex items-center min-h-[48dvh] sm:min-h-[54dvh] md:min-h-[52dvh]">
       {/* Animated canvas background */}
       <div className="pointer-events-none absolute inset-0">
         <HeroCanvas />
@@ -49,7 +49,7 @@ function Hero() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, transparent 55%, var(--color-base) 100%)",
+              "linear-gradient(to bottom, transparent 45%, rgba(190, 185, 179, 0.35) 75%, var(--color-base) 100%)",
           }}
         />
         {/* Left text-protection fade */}
@@ -63,18 +63,18 @@ function Hero() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-14 sm:py-20 md:py-24">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-9 sm:py-12 md:py-14">
         <Kicker className="text-cream/70">Protocol · {NETWORK_LABEL}</Kicker>
-        <div className="mt-6 flex items-start gap-4">
-          <KeeprMark size={40} className="mt-2 hidden sm:block shrink-0" />
-          <h1 className="font-display text-5xl font-bold uppercase leading-[0.9] tracking-tight text-cream sm:text-7xl md:text-8xl lg:text-9xl">
+        <div className="mt-4 flex items-start gap-3 sm:gap-4">
+          <KeeprMark size={36} className="mt-1.5 hidden sm:block shrink-0" />
+          <h1 className="font-display text-5xl font-bold uppercase leading-[0.92] tracking-tight text-cream sm:text-6xl md:text-7xl lg:text-8xl">
             Keepr
           </h1>
         </div>
-        <p className="mt-6 max-w-lg text-lg leading-relaxed text-cream/80 sm:text-xl font-prose">
+        <p className="mt-4 max-w-lg text-base leading-relaxed text-cream/80 sm:text-lg font-prose">
           Private on-chain subscriptions on Starknet. Shield your STRK tokens, subscribe to creators and AI agents, and let automated keepers handle renewals without exposing your wallet address.
         </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button asChild size="lg">
             <Link href="/subscribe">
               Explore Channels
@@ -95,7 +95,7 @@ function Hero() {
 
 function How() {
   return (
-    <section className="border-b border-line">
+    <section id="how" className="border-b border-line scroll-mt-14">
       <div className="mx-auto max-w-6xl px-5 py-16 md:py-20">
         <Kicker>Protocol Lifecycle</Kicker>
         <h2 className="mt-3 max-w-xl text-3xl md:text-4xl font-display font-bold uppercase tracking-tight text-ink">

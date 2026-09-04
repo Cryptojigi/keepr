@@ -29,6 +29,7 @@ const libreBaskerville = Libre_Baskerville({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://keepr-eta.vercel.app"),
   title: "Keepr · Private Subscriptions on STRK20",
   description:
     "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
@@ -52,12 +53,13 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} ${libreBaskerville.variable}`}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body className="flex min-h-screen flex-col">
         <KeeprHydrate />
         <SiteHeader />
-        <div className="flex-1">{children}</div>
+        <div className="flex-1 relative z-[2]">{children}</div>
         <Toaster
           position="bottom-right"
           toastOptions={{

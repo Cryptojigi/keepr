@@ -11,7 +11,15 @@ import { shortAddr } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const LANDING_NAV = [
+  { href: "/", label: "Home" },
+  { href: "/#how", label: "How it works" },
+  { href: "/docs", label: "Docs" },
+  { href: "/subscribe", label: "Explorer" },
+] as const;
+
+const APP_NAV = [
+  { href: "/", label: "Home" },
   { href: "/subscribe", label: "Subscribe" },
   { href: "/dashboard", label: "Vault" },
   { href: "/creator", label: "Creator" },
@@ -22,10 +30,37 @@ const NAV = [
 export function SiteHeader() {
   const pathname = usePathname();
   const connected = useKeepr((s) => s.connected);
-  const address = useKeepr((s) => s.address);
-  const disconnect = useKeepr((s) => s.disconnect);
   const [menu, setMenu] = useState(false);
-  const [wallet, setWallet] = useState(false);
+
+  const isLanding = pathname === "/";
+  const navItems = isLanding ? LANDING_NAV : APP_NAV;
+
+  const handleNavClick = (href: string, e: React.MouseEvent) => {
+    if (href === "/#how" && pathname === "/") {
+      e.preventDefault();
+      const el = document.getElementById("how");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+      setMenu(false);
+    } else if (href === "/" && pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setMenu(false);
+    } else {
+      setMenu(false);
+    }
+  };
+
+  const checkActive = (href: string) => {
+    if (isLanding) {
+      return href === "/";
+    }
+    if (href === "/") {
+      return pathname === "/";
+    }
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   return (
     <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base overflow-hidden">
@@ -34,20 +69,24 @@ export function SiteHeader() {
           <KeeprWordmark />
         </Link>
         <nav className="ml-4 hidden items-center gap-1 md:flex">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "px-2 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors duration-150",
-                pathname === item.href
-                  ? "text-accent"
-                  : "text-muted hover:text-ink",
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const isActive = checkActive(item.href);
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={(e) => handleNavClick(item.href, e)}
+                className={cn(
+                  "px-2.5 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors duration-150",
+                  isActive
+                    ? "text-accent font-semibold"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <SelectWallet variant="nav" />
@@ -79,19 +118,22 @@ export function SiteHeader() {
             </div>
           )}
           <nav className="mx-auto flex max-w-6xl flex-col px-5 py-3">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenu(false)}
-                className={cn(
-                  "flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em]",
-                  pathname === item.href ? "text-accent" : "text-ink",
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const isActive = checkActive(item.href);
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={(e) => handleNavClick(item.href, e)}
+                  className={cn(
+                    "flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em]",
+                    isActive ? "text-accent font-semibold" : "text-ink",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       ) : null}
