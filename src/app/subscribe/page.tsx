@@ -139,8 +139,11 @@ function SubscribeContent() {
     }
     setBusy("subscribe");
     try {
-      // 1. Real on-chain flow when Ready wallet is connected
-      if (isWalletConnected && myWalletAccount && connectedAddress) {
+      // 1. Real on-chain flow when Ready wallet is connected AND the channel is a real
+      // custom channel with a genuine payout address. Showcase/demo channels carry
+      // fabricated creator addresses — routing real STRK to them would lock funds
+      // forever — so they always take the simulated path below.
+      if (isWalletConnected && myWalletAccount && connectedAddress && creator.isCustom) {
         toast("Initiating on-chain subscription via Privacy Pool…");
 
         // Verify the wallet account is deployed on-chain
@@ -251,7 +254,14 @@ function SubscribeContent() {
       if (!sessionKey) grantSessionKey();
       await wait(900);
       subscribe(creator.id, selectedTier.id);
-      toast.success(`Subscribed to ${creator.name}!`);
+      if (isWalletConnected && !creator.isCustom) {
+        toast.success(`Subscribed to ${creator.name} (simulated demo — showcase channel).`, {
+          description:
+            "Create your own channel to run real on-chain subscriptions with a genuine payout address.",
+        });
+      } else {
+        toast.success(`Subscribed to ${creator.name}!`);
+      }
       router.push("/dashboard");
     } catch (e: any) {
       const parsed = parseStarknetError(e);
