@@ -139,11 +139,12 @@ function SubscribeContent() {
     }
     setBusy("subscribe");
     try {
-      // 1. Real on-chain flow when Ready wallet is connected AND the channel is a real
-      // custom channel with a genuine payout address. Showcase/demo channels carry
-      // fabricated creator addresses — routing real STRK to them would lock funds
-      // forever — so they always take the simulated path below.
-      if (isWalletConnected && myWalletAccount && connectedAddress && creator.isCustom) {
+      // 1. Real on-chain flow when Ready wallet is connected. Payout routing:
+      //    - Custom channels → the creator's genuine payout address.
+      //    - Showcase/demo channels → the SUBSCRIBER's own wallet (sandbox pattern):
+      //      real tx, real proof, but the OPEN note routes back to the user so funds
+      //      are recoverable via unshield — never to the demo's fabricated address.
+      if (isWalletConnected && myWalletAccount && connectedAddress) {
         toast("Initiating on-chain subscription via Privacy Pool…");
 
         // Verify the wallet account is deployed on-chain
@@ -170,11 +171,11 @@ function SubscribeContent() {
         const subId = computeSubId(connectedAddress, salt);
         const authCommit = computeAuthCommit(cancelSecret);
 
-        // Payout address binds directly to the creator's address
-        const creatorPayoutAddress =
-          creator.address ||
-          process.env.NEXT_PUBLIC_CREATOR_PAYOUT ||
-          connectedAddress;
+        // Payout address: custom channels pay the creator; demo channels route the
+        // OPEN note back to the subscriber (sandbox — funds recoverable, never lost).
+        const creatorPayoutAddress = creator.isCustom
+          ? creator.address || connectedAddress
+          : connectedAddress;
 
         const actions = buildSubscribeActions({
           creatorAddress: creatorPayoutAddress,
@@ -196,18 +197,27 @@ function SubscribeContent() {
                 ?.transactionHash ||
               "";
 
-        toast.success(`Subscribed to ${creator.name}!`, {
-          description: txHash
-            ? `Tx: ${txHash.slice(0, 14)}…`
-            : "Subscription confirmed on-chain",
-          action: txHash
-            ? {
-                label: "View",
-                onClick: () =>
-                  window.open(`https://starkscan.co/tx/${txHash}`, "_blank"),
-              }
-            : undefined,
-        });
+        toast.success(
+          creator.isCustom
+            ? `Subscribed to ${creator.name}!`
+            : `Subscribed to ${creator.name} (demo) — payment routed back to your wallet.`,
+          {
+            description: creator.isCustom
+              ? txHash
+                ? `Tx: ${txHash.slice(0, 14)}…`
+                : "Subscription confirmed on-chain"
+              : txHash
+                ? `Sandbox sub · funds recoverable via unshield · Tx: ${txHash.slice(0, 14)}…`
+                : "Sandbox sub · funds recoverable via unshield",
+            action: txHash
+              ? {
+                  label: "View",
+                  onClick: () =>
+                    window.open(`https://starkscan.co/tx/${txHash}`, "_blank"),
+                }
+              : undefined,
+          },
+        );
 
         // Record in store
         const now = Date.now();
@@ -254,14 +264,7 @@ function SubscribeContent() {
       if (!sessionKey) grantSessionKey();
       await wait(900);
       subscribe(creator.id, selectedTier.id);
-      if (isWalletConnected && !creator.isCustom) {
-        toast.success(`Subscribed to ${creator.name} (simulated demo — showcase channel).`, {
-          description:
-            "Create your own channel to run real on-chain subscriptions with a genuine payout address.",
-        });
-      } else {
-        toast.success(`Subscribed to ${creator.name}!`);
-      }
+      toast.success(`Subscribed to ${creator.name}!`);
       router.push("/dashboard");
     } catch (e: any) {
       const parsed = parseStarknetError(e);
