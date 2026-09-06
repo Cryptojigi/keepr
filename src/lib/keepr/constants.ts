@@ -29,3 +29,26 @@ export const READY_STORE_URL =
   "https://chromewebstore.google.com/detail/ready-wallet/hkeaflfmepelbhgkhkbfmfbkkblhcfkn";
 
 export const NETWORK_LABEL = "Starknet Mainnet";
+
+/**
+ * Keepr Protocol Fee Configuration
+ * Mainnet v1 Policy: 0% protocol take-rate.
+ * 100% of subscription tokens route directly into the creator's shielded payout note on Starknet.
+ * (Protocol take-rates of 2.5% are scheduled for the upcoming v2 factory release).
+ */
+export const PROTOCOL_FEE_BPS = 0; // 0% on Mainnet v1
+
+export const KEEPR_TREASURY_ADDRESS =
+  process.env.NEXT_PUBLIC_TREASURY_ADDRESS ||
+  "0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1";
+
+export function calculateFeeSplit(grossAmount: number, feeBps: number = PROTOCOL_FEE_BPS) {
+  const fee = (grossAmount * feeBps) / 10000;
+  const creatorAmount = Math.max(0, grossAmount - fee);
+  return {
+    grossAmount,
+    creatorAmount: Math.round(creatorAmount * 100) / 100,
+    protocolFee: Math.round(fee * 100) / 100,
+    protocolFeeBps: feeBps,
+  };
+}

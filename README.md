@@ -111,37 +111,52 @@ Keepr features 4 production-grade channels spanning autonomous agents, intellige
 
 ---
 
-## Autonomous Keeper Daemon (`keeper/`)
+## Hybrid Architecture: Global Directory & Zero-Database Subscriber Privacy
 
-An autonomous off-chain renewal daemon designed to monitor and trigger zero-knowledge recurring subscription renewals on Starknet.
+Keepr solves the cross-device discovery problem while strictly preserving 100% subscriber privacy:
 
-### Key Capabilities
-- **Payer Privacy Preserved**: Operates exclusively using deterministic subscription IDs (`sub_id`).
-- **Autonomous Scan & Discovery**: Discovers active subscriptions via on-chain `Subscribed` events from the helper contract.
-- **Safety Rails**:
-  - Rejects renewing amounts exceeding `maxRenewAmountStrk` (default: 500 STRK).
-  - Validates `now >= last_renewed + period` directly against on-chain contract state.
-  - Skips inactive or cancelled subscriptions.
-- **Dry-Run Simulation**: Supports simulated execution of `privacy_invoke(op=1)` for safe local monitoring without gas costs.
-
-```bash
-# Run standalone dry-run scan
-npm run dry-run --prefix keeper
-
-# Monitor a specific subscription sub_id
-npx ts-node keeper/src/index.ts 0x1234...
 ```
+┌────────────────────────────────────────────────────────┐     ┌────────────────────────────────────────────────────────┐
+│               CREATOR BROADCAST LAYER                  │     │                SUBSCRIBER PRIVACY LAYER                │
+│             (Global Public Directory)                  │     │                 (Pure Starknet State)                  │
+├────────────────────────────────────────────────────────┤     ├────────────────────────────────────────────────────────┤
+│ • Public yellow-pages directory via Supabase           │     │ • ZERO database records created for users              │
+│ • Stores channel handles, rate books & lifetime passes │     │ • Deterministic Poseidon salt: hash(wallet, channel)   │
+│ • Broadcast channels across any device worldwide       │     │ • Subscriptions discovered directly via RPC:           │
+│ • Graceful fallback: local store if registry offline   │     │   is_active(sub_id) on Starknet Mainnet                │
+└────────────────────────────────────────────────────────┘     └────────────────────────────────────────────────────────┘
+```
+
+1. **Global Yellow-Pages Directory (Supabase)**: When creators launch channels or issue lifetime passes, they broadcast metadata publicly so subscribers on any device or computer can explore them.
+2. **Pure On-Chain Subscriber Sync**: Subscribers NEVER write to Supabase or any central server. Active subscriptions are discovered directly from Starknet RPC using deterministic Poseidon salts:
+   $$\text{salt} = \text{Poseidon}(\text{cleanAddress}(\text{wallet}), \text{felt}(\text{channelId}))$$
+3. **Mainnet v1 0% Protocol Fee Policy**: 100% of STRK token transfers route directly into the creator's payout note. Keepr levies 0% take-rate on Mainnet v1.
+4. **Lifetime Access Passes & Perpetual Licenses**: Creators can vend single-license access keys and permanent passes with one-time STRK payments.
 
 ---
 
-## Verification & Gate Integration (`/verify`)
+## Developer SDK & Zero-Knowledge Gating (`/verify`)
 
-Services (Discord bots, Telegram gates, web APIs) verify tier access with zero knowledge of the payer's identity:
+Keepr provides native 5-line integrations for Telegram bots, Discord role assigners, and API gateways:
 
-1. Gate presents an challenge string (e.g. `keepr:gate:cipher:verify`).
-2. Client signs the challenge in-browser with zero leakage of private balances or identity.
-3. Gate calls `is_active(sub_id)` and `get_subscription(sub_id)` on the deployed Helper contract.
-4. Gate grants role or access token based on verified tier without learning payer wallet, total balance, or transaction history.
+```typescript
+import { RpcProvider } from "starknet";
+
+const HELPER_ADDRESS = "0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1";
+const provider = new RpcProvider({ nodeUrl: "https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY" });
+
+// Pure zero-knowledge verification: zero database knowledge needed
+export async function isSubscriptionActive(subId: string): Promise<boolean> {
+  const res = await provider.callContract({
+    contractAddress: HELPER_ADDRESS,
+    entrypoint: "is_active",
+    calldata: [subId],
+  });
+  return res.result[0] === "0x1";
+}
+```
+
+Interactive snippets in **TypeScript**, **Python** (`starknet-py`), and raw **cURL** / JSON-RPC are built right into the [`/verify`](https://keepr-eta.vercel.app/verify) portal.
 
 ---
 
@@ -151,6 +166,7 @@ Services (Discord bots, Telegram gates, web APIs) verify tier access with zero k
 - Node.js 20+
 - Ready Wallet ([Chrome Web Store](https://chromewebstore.google.com/detail/ready-wallet/hkeaflfmepelbhgkhkbfmfbkkblhcfkn)) or Starknet-compatible wallet
 - Starknet RPC provider URL (Alchemy, Nethermind Juno, or Blast API)
+- (Optional) Supabase project for the public creator yellow pages
 
 ### Installation & Local Setup
 
@@ -166,7 +182,9 @@ npm install
 cp .env.example .env.local
 
 # Edit .env.local:
-# NEXT_PUBLIC_PROVIDER_URL=https://starknet-mainnet.g.alchemy.com/v2/YOUR_API_KEY
+# NEXT_PUBLIC_PROVIDER_URL=your_alchemy_key_here
+# NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_publishable_anon_key
 
 # 4. Start local development server
 npm run dev
@@ -191,42 +209,49 @@ npm run lint
 
 ```
 keepr/
-├── cairo/                          # Cairo 2.18 Smart Contracts
+├── cairo/                          # Cairo 2.18 Smart Contracts (Deployed on Mainnet)
 │   ├── src/
 │   │   └── lib.cairo               # KeeprSubscriptionHelper contract & interfaces
+│   ├── address.md                  # Mainnet deployment hashes & verified txs
 │   └── Scarb.toml                  # Scarb package configuration
 ├── keeper/                         # Autonomous 24/7 Keeper Renewal Daemon
 │   ├── src/
-│   │   ├── keeper.ts               # Core monitoring, event discovery & evaluation engine
+│   │   ├── keeper.ts               # Event discovery & evaluation engine
 │   │   ├── index.ts                # Daemon CLI entrypoint
 │   │   └── types.ts                # Keeper configuration and decision log types
 │   ├── package.json
 │   └── README.md
 ├── src/
 │   ├── app/
-│   │   ├── creator/page.tsx        # Creator viewing-key portal & private MRR analytics
-│   │   ├── dashboard/page.tsx      # Subscriber vault, active channels & cancellation
+│   │   ├── creator/page.tsx        # Creator studio, live analytics, rate books & Supabase sync
+│   │   ├── dashboard/page.tsx      # Subscriber vault, pure on-chain scan & keeper monitor
 │   │   ├── docs/page.tsx           # Full 8-section protocol documentation & guide
-│   │   ├── subscribe/page.tsx      # Channel selector, tier picker & atomic STRK20 subscribe
-│   │   ├── verify/page.tsx         # Zero-knowledge gate verification & pass generator
+│   │   ├── subscribe/page.tsx      # Global explorer, tier picker, lifetime passes & checkout
+│   │   ├── verify/page.tsx         # Developer SDK, bot snippets & zero-knowledge gating
 │   │   ├── globals.css             # Theme tokens, font variables & brutalist styling
 │   │   ├── layout.tsx              # Root layout, typography imports & toast provider
 │   │   └── page.tsx                # Protocol landing page with animated hero canvas
 │   ├── components/
-│   │   ├── hero-canvas.tsx         # GPU-accelerated organic blob canvas animation
-│   │   ├── vault-strip.tsx         # Real-time balances, auto-renew status & quick shield chips
-│   │   ├── site-header.tsx         # Responsive navigation & mobile wallet drawer
-│   │   ├── site-footer.tsx         # Deep wine accent footer & protocol reference links
+│   │   ├── buy-vended-item-modal.tsx    # On-chain checkout modal for lifetime passes
+│   │   ├── create-vended-item-modal.tsx # Creator modal to issue lifetime passes
+│   │   ├── create-channel-modal.tsx     # Channel creation modal with Supabase broadcast
+│   │   ├── hero-canvas.tsx              # GPU-accelerated organic blob canvas animation
+│   │   ├── vault-strip.tsx              # Real-time balances, auto-renew status & quick shield chips
 │   │   └── ...
-│   └── lib/keepr/
-│       ├── constants.ts            # Contract addresses, token hashes & pool references
-│       ├── data.ts                 # 4 showcase channels, tier rate books & keeper feed
-│       ├── errors.ts               # Actionable Starknet & Ready X error translator
-│       ├── format.ts               # Currency, countdown, serial & date formatters
-│       ├── onchain.ts              # Poseidon hashing, RPC callers & STRK20 action builders
-│       ├── store.ts                # Zustand store with encrypted local persistence
-│       └── types.ts                # TypeScript domain models
-├── strk20.json                     # Hackathon submission metadata & transaction hashes
+│   ├── lib/
+│   │   ├── keepr/
+│   │   │   ├── constants.ts             # Contract addresses, token hashes & pool references
+│   │   │   ├── data.ts                  # 4 showcase channels, tier rate books & keeper feed
+│   │   │   ├── errors.ts                # Actionable Starknet & Ready X error translator
+│   │   │   ├── format.ts                # Currency, countdown, serial & date formatters
+│   │   │   ├── onchain.ts               # Poseidon hashing, RPC callers & deterministic salts
+│   │   │   ├── share.ts                 # Self-describing cross-device channel URLs
+│   │   │   ├── store.ts                 # Zustand store with encrypted local persistence
+│   │   │   └── types.ts                 # TypeScript domain models
+│   │   └── supabase/
+│   │       ├── client.ts                # Safe singleton client with offline fallback
+│   │       └── registry.ts              # Public yellow-pages directory APIs
+├── strk20.json                          # Hackathon submission metadata & transaction hashes
 └── README.md
 ```
 

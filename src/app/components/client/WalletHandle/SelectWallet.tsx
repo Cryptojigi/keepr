@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ExternalLink, ShieldCheck, RefreshCw, AlertCircle } from "lucide-react";
+import { X, ExternalLink, ShieldCheck, RefreshCw, AlertCircle, Copy, Check, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import {
   walletV6,
@@ -14,7 +14,7 @@ import { createStore, type Store } from "@starknet-io/get-starknet-discovery";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 import { myFrontendProviders } from "@/utils/constants";
 import { useKeepr } from "@/lib/keepr/store";
-import { READY_STORE_URL } from "@/lib/keepr/constants";
+import { READY_STORE_URL, READY_URL } from "@/lib/keepr/constants";
 import { refreshLiveBalances } from "@/lib/keepr/onchain";
 import { parseStarknetError } from "@/lib/keepr/errors";
 import { formatStrk } from "@/lib/keepr/format";
@@ -58,6 +58,25 @@ export default function SelectWallet({
   const [error, setError] = useState<string>("");
   const [internalPickerOpen, setInternalPickerOpen] = useState(false);
   const [wallets, setWallets] = useState<WalletWithStarknetFeatures[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [copiedMobileLink, setCopiedMobileLink] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ""));
+      setCurrentUrl(window.location.href);
+    }
+  }, []);
+
+  const handleCopyMobileLink = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedMobileLink(true);
+      toast.success("Keepr URL copied! Open Ready Wallet app and paste in DApp browser.");
+      setTimeout(() => setCopiedMobileLink(false), 2500);
+    }
+  };
 
   const pickerOpen = externalOpen !== undefined ? externalOpen : internalPickerOpen;
   const setPickerOpen = (open: boolean) => {
@@ -195,16 +214,18 @@ export default function SelectWallet({
     ? `${effectiveAddress.slice(0, 6)}…${effectiveAddress.slice(-4)}`
     : "";
 
+  const otherWallets = wallets.filter((w) => w !== readyWallet);
+
   // Minimal, clean Ready X Wallet Modal
   const pickerModal = pickerOpen ? (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-3 sm:p-4 backdrop-blur-sm"
       onClick={() => !connecting && setPickerOpen(false)}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-sm border border-line bg-cream p-5 sm:p-6 shadow-[var(--shadow-border-hover)]"
+        className="relative w-full max-w-sm border border-line bg-cream p-4 sm:p-6 shadow-[var(--shadow-border-hover)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between pb-3 border-b border-line">
@@ -263,6 +284,75 @@ export default function SelectWallet({
                 {connecting ? "Connecting…" : "Connect →"}
               </span>
             </button>
+          ) : isMobile ? (
+            /* Mobile Guidance & Connection Assistant */
+            <div className="border border-line bg-raised p-3.5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="size-4 text-accent shrink-0" />
+                <span className="font-display text-xs font-bold uppercase tracking-tight text-ink">
+                  Mobile Browser Detected
+                </span>
+              </div>
+              <p className="font-sans text-xs text-muted leading-relaxed">
+                Standard mobile Safari/Chrome cannot run desktop extensions. To connect with Ready Wallet, open Keepr inside the <strong className="text-ink">Ready Wallet Mobile App</strong>.
+              </p>
+
+              <div className="space-y-2 pt-1">
+                {/* 1. Deep Link Launch Button */}
+                <a
+                  href={`ready://dapp?url=${encodeURIComponent(currentUrl || "https://keepr.vercel.app")}`}
+                  className="flex items-center justify-between border-2 border-accent bg-cream p-2.5 text-left shadow-[var(--shadow-border)] hover:bg-raised transition-all group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-7 bg-accent text-cream flex items-center justify-center font-display text-xs font-bold">
+                      RX
+                    </div>
+                    <div>
+                      <p className="font-display text-xs font-bold uppercase text-ink">
+                        Open in Ready App
+                      </p>
+                      <p className="font-mono text-[9px] text-accent">
+                        Launch DApp Browser
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs font-semibold text-accent uppercase tracking-wider group-hover:translate-x-0.5 transition-transform">
+                    Launch →
+                  </span>
+                </a>
+
+                {/* 2. Copy Link Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyMobileLink}
+                  className="w-full flex items-center justify-center gap-2 border border-line bg-cream px-3 py-2 font-mono text-xs uppercase tracking-wider text-ink hover:bg-raised transition-colors"
+                >
+                  {copiedMobileLink ? (
+                    <>
+                      <Check className="size-3.5 text-accent" />
+                      <span className="text-accent font-semibold">Copied to Clipboard</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5 text-muted" />
+                      <span>Copy URL for Ready App</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 3. Download Link */}
+                <div className="text-center pt-1 border-t border-line/60">
+                  <a
+                    href={READY_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-sans text-[11px] text-muted hover:text-accent underline inline-flex items-center gap-1"
+                  >
+                    Get Ready Wallet Mobile App <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
           ) : (
             <a
               href={READY_STORE_URL}
@@ -289,6 +379,31 @@ export default function SelectWallet({
             </a>
           )}
         </div>
+
+        {/* Other Detected Starknet Wallets */}
+        {otherWallets.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-line space-y-1.5">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-subtle">
+              Other Detected Wallets
+            </p>
+            {otherWallets.map((w) => (
+              <button
+                key={w.name}
+                type="button"
+                onClick={() => handleSelectedWallet(w, true).then(() => setPickerOpen(false))}
+                className="w-full flex items-center justify-between border border-line bg-raised p-2 text-left hover:bg-cream transition-colors text-xs font-mono"
+              >
+                <div className="flex items-center gap-2">
+                  {w.icon ? (
+                    <img src={w.icon} alt={w.name} className="size-4 object-contain" />
+                  ) : null}
+                  <span className="font-display uppercase font-bold text-ink">{w.name}</span>
+                </div>
+                <span className="text-accent uppercase text-[10px]">Connect →</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Discreet Demo Fallback */}
         <div className="mt-4 pt-3 border-t border-line text-center">

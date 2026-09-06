@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
-import type { CreatorRate, TierId } from "@/lib/keepr/types";
+import type { CreatorRate, TierId, PricingType } from "@/lib/keepr/types";
+import { cn } from "@/lib/utils";
 
 interface CreateChannelModalProps {
   open: boolean;
@@ -43,9 +44,11 @@ export function CreateChannelModal({
   const connectedAddress = useStoreWallet((s) => s.address);
   const isWalletConnected = useStoreWallet((s) => s.isConnected);
   const storeAddress = useKeepr((s) => s.address);
+  const isStoreConnected = useKeepr((s) => s.connected);
   const createChannel = useKeepr((s) => s.createChannel);
 
-  const effectiveAddress = connectedAddress || storeAddress || "";
+  // Derive active address safely
+  const effectiveAddress = connectedAddress || (isStoreConnected ? storeAddress : "");
 
   // Form State
   const [name, setName] = useState("");
@@ -55,6 +58,11 @@ export function CreateChannelModal({
   const [payoutAddress, setPayoutAddress] = useState(effectiveAddress);
   const [serviceUrl, setServiceUrl] = useState("");
   const [discoverable, setDiscoverable] = useState(true);
+
+  // Pricing Model State
+  const [pricingModel, setPricingModel] = useState<PricingType>("flat");
+  const [flatPlanName, setFlatPlanName] = useState("Standard Access");
+  const [flatPlanStrk, setFlatPlanStrk] = useState("25");
 
   // Tiers State
   const [tier0Name, setTier0Name] = useState("Basic");
@@ -108,16 +116,27 @@ export function CreateChannelModal({
       }
     }
 
-    // Parse tiers
-    const t0 = Math.max(1, parseInt(tier0Strk, 10) || 5);
-    const t1 = Math.max(1, parseInt(tier1Strk, 10) || 15);
-    const t2 = Math.max(1, parseInt(tier2Strk, 10) || 35);
-
-    const rates: CreatorRate[] = [
-      { id: 0 as TierId, name: tier0Name.trim() || "Basic", strk: t0 },
-      { id: 1 as TierId, name: tier1Name.trim() || "Pro", strk: t1 },
-      { id: 2 as TierId, name: tier2Name.trim() || "VIP", strk: t2 },
-    ];
+    // Parse rates based on selected pricing model
+    let rates: CreatorRate[];
+    if (pricingModel === "flat") {
+      const flatRate = Math.max(1, parseInt(flatPlanStrk, 10) || 25);
+      rates = [
+        {
+          id: 0 as TierId,
+          name: flatPlanName.trim() || "Standard Access",
+          strk: flatRate,
+        },
+      ];
+    } else {
+      const t0 = Math.max(1, parseInt(tier0Strk, 10) || 5);
+      const t1 = Math.max(1, parseInt(tier1Strk, 10) || 15);
+      const t2 = Math.max(1, parseInt(tier2Strk, 10) || 35);
+      rates = [
+        { id: 0 as TierId, name: tier0Name.trim() || "Basic", strk: t0 },
+        { id: 1 as TierId, name: tier1Name.trim() || "Pro", strk: t1 },
+        { id: 2 as TierId, name: tier2Name.trim() || "VIP", strk: t2 },
+      ];
+    }
 
     const owner = effectiveAddress || targetPayout;
 
@@ -129,6 +148,7 @@ export function CreateChannelModal({
       payoutAddress: targetPayout,
       ownerAddress: owner,
       rates,
+      pricingType: pricingModel,
       discoverable,
       serviceUrl: serviceUrl.trim() || undefined,
     });
@@ -155,13 +175,13 @@ export function CreateChannelModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto border border-line bg-raised p-6 shadow-2xl">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto border border-line bg-raised p-4 sm:p-6 shadow-2xl">
         <DialogHeader>
           <p className="kicker">Creator Self-Service</p>
           <DialogTitle className="font-display text-2xl font-bold uppercase tracking-tight text-ink">
             Launch Subscription Channel
           </DialogTitle>
-          <DialogDescription className="font-mono text-xs text-muted">
+          <DialogDescription className="font-sans text-xs text-muted leading-relaxed">
             Create a permissionless private subscription channel on Starknet. Receive recurring shielded STRK notes directly to your payout address.
           </DialogDescription>
         </DialogHeader>
@@ -203,7 +223,7 @@ export function CreateChannelModal({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full border border-line bg-cream px-3 py-2 font-mono text-xs text-ink focus:outline-none focus:ring-1 focus:ring-accent"
+              className="mt-1 w-full border border-line bg-cream px-3 py-2 font-sans text-xs text-ink focus:outline-none focus:ring-1 focus:ring-accent"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -249,7 +269,7 @@ export function CreateChannelModal({
               className="mt-1 bg-cream font-mono text-xs"
               required
             />
-            <p className="mt-1 font-mono text-[10px] text-muted">
+            <p className="mt-1 font-sans text-[11px] text-muted leading-relaxed">
               Subscription funds will be deposited directly to an open STRK note assigned to this address.
             </p>
           </div>
@@ -268,7 +288,7 @@ export function CreateChannelModal({
               onChange={(e) => setServiceUrl(e.target.value)}
               className="mt-1 bg-cream font-mono text-xs"
             />
-            <p className="mt-1 font-mono text-[10px] text-muted">
+            <p className="mt-1 font-sans text-[11px] text-muted leading-relaxed">
               Subscribers receive an active access button pointing here once subscribed.
             </p>
           </div>
@@ -286,7 +306,7 @@ export function CreateChannelModal({
                   {discoverable ? "Public Channel (Discoverable)" : "Private Channel (Unlisted)"}
                 </span>
               </div>
-              <p className="mt-1 font-mono text-[10px] text-muted">
+              <p className="mt-1 font-sans text-[11px] text-muted leading-relaxed">
                 {discoverable
                   ? "Appears in the public explorer catalog on /subscribe."
                   : "Hidden from catalog. Reachable only via your direct share link (/subscribe?channel=...)"}
@@ -295,75 +315,153 @@ export function CreateChannelModal({
             <Switch checked={discoverable} onCheckedChange={setDiscoverable} />
           </div>
 
-          {/* Subscription Tiers */}
+          {/* Pricing Model Configuration */}
           <div className="border border-line bg-cream/70 p-4">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-ink">
-              Monthly Subscription Tiers (STRK / 30 Days)
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {/* Tier 0 */}
-              <div className="border border-line/60 bg-raised p-2.5">
-                <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 0 (Entry)</p>
-                <Input
-                  value={tier0Name}
-                  onChange={(e) => setTier0Name(e.target.value)}
-                  placeholder="Tier Name"
-                  className="mt-1 h-8 bg-cream text-xs"
-                />
-                <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={tier0Strk}
-                    onChange={(e) => setTier0Strk(e.target.value)}
-                    className="h-8 bg-cream text-xs font-bold"
-                  />
-                  <span className="text-muted text-[10px]">STRK</span>
-                </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-ink">
+                  Subscription Pricing Model
+                </p>
+                <p className="mt-0.5 font-sans text-[11px] text-muted leading-relaxed">
+                  Choose a single renewable flat rate or a 3-tier structure
+                </p>
               </div>
-
-              {/* Tier 1 */}
-              <div className="border border-line/60 bg-raised p-2.5">
-                <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 1 (Pro)</p>
-                <Input
-                  value={tier1Name}
-                  onChange={(e) => setTier1Name(e.target.value)}
-                  placeholder="Tier Name"
-                  className="mt-1 h-8 bg-cream text-xs"
-                />
-                <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={tier1Strk}
-                    onChange={(e) => setTier1Strk(e.target.value)}
-                    className="h-8 bg-cream text-xs font-bold"
-                  />
-                  <span className="text-muted text-[10px]">STRK</span>
-                </div>
-              </div>
-
-              {/* Tier 2 */}
-              <div className="border border-line/60 bg-raised p-2.5">
-                <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 2 (VIP)</p>
-                <Input
-                  value={tier2Name}
-                  onChange={(e) => setTier2Name(e.target.value)}
-                  placeholder="Tier Name"
-                  className="mt-1 h-8 bg-cream text-xs"
-                />
-                <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={tier2Strk}
-                    onChange={(e) => setTier2Strk(e.target.value)}
-                    className="h-8 bg-cream text-xs font-bold"
-                  />
-                  <span className="text-muted text-[10px]">STRK</span>
-                </div>
+              <div className="inline-flex border border-line bg-raised p-0.5 font-mono text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPricingModel("flat")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                    pricingModel === "flat"
+                      ? "bg-accent text-cream shadow-sm"
+                      : "text-muted hover:text-ink",
+                  )}
+                >
+                  Single Plan (Flat)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPricingModel("tiered")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                    pricingModel === "tiered"
+                      ? "bg-accent text-cream shadow-sm"
+                      : "text-muted hover:text-ink",
+                  )}
+                >
+                  3-Tiered Plans
+                </button>
               </div>
             </div>
+
+            {pricingModel === "flat" ? (
+              <div className="mt-3 border border-line/60 bg-raised p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-accent font-semibold">
+                    One-Time Renewable Pass
+                  </span>
+                  <span className="font-mono text-[10px] text-muted">
+                    Duration: 30 Days
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-[1.5fr_1fr]">
+                  <div>
+                    <label className="font-mono text-[10px] uppercase tracking-wider text-subtle">
+                      Plan Label / Title
+                    </label>
+                    <Input
+                      value={flatPlanName}
+                      onChange={(e) => setFlatPlanName(e.target.value)}
+                      placeholder="e.g. Standard Pass, All-Access, Monthly Pass"
+                      className="mt-1 bg-cream text-xs font-sans font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[10px] uppercase tracking-wider text-subtle">
+                      Price (STRK / 30d)
+                    </label>
+                    <div className="mt-1 flex items-center gap-1.5 font-mono text-xs">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={flatPlanStrk}
+                        onChange={(e) => setFlatPlanStrk(e.target.value)}
+                        className="bg-cream text-xs font-bold"
+                      />
+                      <span className="text-muted text-[10px] font-bold">STRK</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 font-sans text-[11px] text-muted leading-relaxed">
+                  Subscribers pay this single flat rate for 30 days of access. No tiers required. Access can be renewed manually or via automated session keepers when expired.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {/* Tier 0 */}
+                <div className="border border-line/60 bg-raised p-2.5">
+                  <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 0 (Entry)</p>
+                  <Input
+                    value={tier0Name}
+                    onChange={(e) => setTier0Name(e.target.value)}
+                    placeholder="Tier Name"
+                    className="mt-1 h-8 bg-cream text-xs"
+                  />
+                  <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={tier0Strk}
+                      onChange={(e) => setTier0Strk(e.target.value)}
+                      className="h-8 bg-cream text-xs font-bold"
+                    />
+                    <span className="text-muted text-[10px]">STRK</span>
+                  </div>
+                </div>
+
+                {/* Tier 1 */}
+                <div className="border border-line/60 bg-raised p-2.5">
+                  <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 1 (Pro)</p>
+                  <Input
+                    value={tier1Name}
+                    onChange={(e) => setTier1Name(e.target.value)}
+                    placeholder="Tier Name"
+                    className="mt-1 h-8 bg-cream text-xs"
+                  />
+                  <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={tier1Strk}
+                      onChange={(e) => setTier1Strk(e.target.value)}
+                      className="h-8 bg-cream text-xs font-bold"
+                    />
+                    <span className="text-muted text-[10px]">STRK</span>
+                  </div>
+                </div>
+
+                {/* Tier 2 */}
+                <div className="border border-line/60 bg-raised p-2.5">
+                  <p className="font-mono text-[10px] uppercase text-accent font-semibold">Tier 2 (VIP)</p>
+                  <Input
+                    value={tier2Name}
+                    onChange={(e) => setTier2Name(e.target.value)}
+                    placeholder="Tier Name"
+                    className="mt-1 h-8 bg-cream text-xs"
+                  />
+                  <div className="mt-1.5 flex items-center gap-1 font-mono text-xs">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={tier2Strk}
+                      onChange={(e) => setTier2Strk(e.target.value)}
+                      className="h-8 bg-cream text-xs font-bold"
+                    />
+                    <span className="text-muted text-[10px]">STRK</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2">

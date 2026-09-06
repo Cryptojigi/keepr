@@ -42,6 +42,56 @@ export function computeSubId(walletAddress: string, salt: string | bigint): stri
 }
 
 /**
+ * Generate a deterministic salt for a user subscribing to a specific channel.
+ * This allows the subscriber to recover their active subscription on ANY device
+ * without needing any server or centralized database log.
+ */
+export function computeDeterministicSalt(walletAddress: string, channelId: string): string {
+  try {
+    const cleanAddr = validateAndParseAddress(walletAddress);
+    const chanBytes = new TextEncoder().encode(channelId.slice(0, 31));
+    let chanNum = 0n;
+    for (const b of chanBytes) {
+      chanNum = (chanNum << 8n) | BigInt(b);
+    }
+    const chanFelt = num.toHex(chanNum);
+    return hash.computePoseidonHashOnElements([cleanAddr, chanFelt]);
+  } catch {
+    return hash.computePoseidonHashOnElements([walletAddress, num.toHex(999999)]);
+  }
+}
+
+/**
+ * Scan on-chain subscriptions for a connected user across known channels.
+ * Directly reads Starknet Mainnet via RPC — zero database queries, zero tracking.
+ */
+export async function scanUserSubscriptionsOnchain(
+  userAddress: string,
+  channels: { id: string; address?: string; name?: string }[]
+): Promise<Array<{ channelId: string; subId: string; record: OnchainSubscriptionRecord }>> {
+  if (!userAddress) return [];
+  const found: Array<{ channelId: string; subId: string; record: OnchainSubscriptionRecord }> = [];
+
+  for (const chan of channels) {
+    try {
+      const salt = computeDeterministicSalt(userAddress, chan.id);
+      const subId = computeSubId(userAddress, salt);
+      const active = await isActiveOnchain(subId);
+      if (active) {
+        const record = await getSubscriptionOnchain(subId);
+        if (record && record.active) {
+          found.push({ channelId: chan.id, subId, record });
+        }
+      }
+    } catch {
+      // Continue checking next channel
+    }
+  }
+
+  return found;
+}
+
+/**
  * Compute the cancel authorization commitment = poseidon(cancel_secret).
  */
 export function computeAuthCommit(cancelSecret: string | bigint): string {

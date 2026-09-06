@@ -16,6 +16,8 @@ export type Tier = {
   features: string[];
 };
 
+export type PricingType = "flat" | "tiered";
+
 export type Creator = {
   id: string;
   name: string;
@@ -32,6 +34,7 @@ export type Creator = {
   isCustom?: boolean;
   isDemo?: boolean;
   createdAt?: number;
+  pricingType?: PricingType;
 };
 
 export type Subscription = {
@@ -66,3 +69,37 @@ export type IncomeReceipt = {
   channels: number;
   createdAt: number;
 };
+
+export type VendedItem = {
+  id: string;
+  creatorId: string;
+  creatorAddress: string;
+  title: string;
+  description: string;
+  category: string;
+  priceStrk: number;
+  deliveryUrl: string;
+  active: boolean;
+  salesCount?: number;
+  createdAt: number;
+};
+
+export type PurchasedItem = {
+  id: string;
+  itemId: string;
+  creatorId: string;
+  title: string;
+  amountStrk: number;
+  purchasedAt: number;
+  deliveryUrl: string;
+  txHash: string;
+  creatorAddress?: string;
+};
+
+export type FeeSplit = {
+  grossAmount: number;
+  creatorAmount: number;
+  protocolFee: number;
+  protocolFeeBps: number;
+};
+

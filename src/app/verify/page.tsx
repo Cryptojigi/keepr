@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Check, Copy, Code2 } from "lucide-react";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 import { HashGrid } from "@/components/hash-grid";
 import { Kicker } from "@/components/kicker";
@@ -11,6 +12,7 @@ import { CREATORS, creatorById, rateById } from "@/lib/keepr/data";
 import { formatDate } from "@/lib/keepr/format";
 import { getSubscriptionOnchain, isActiveOnchain } from "@/lib/keepr/onchain";
 import { useKeepr } from "@/lib/keepr/store";
+import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "signing" | "checking" | "valid" | "none";
 
@@ -215,6 +217,22 @@ export default function VerifyPage() {
           ))}
         </ul>
       </section>
+
+      <section className="mt-12 border border-line bg-raised p-5 shadow-[var(--shadow-border)]">
+        <div className="flex items-center justify-between">
+          <Kicker>Developer SDK & Bot Integration</Kicker>
+          <span className="font-mono text-[9px] uppercase border border-line px-2 py-0.5 bg-cream text-accent font-semibold">
+            Zero-Knowledge Gating
+          </span>
+        </div>
+        <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight text-ink">
+          Gate Telegram, Discord, or APIs.
+        </h2>
+        <p className="mt-1 text-xs text-muted leading-relaxed font-sans max-w-xl">
+          Integrate Keepr verification into your Telegram bot, Discord role-assigner, or backend middleware. Verify whether any subscriber pseudonym (<code className="font-mono text-accent">sub_id</code>) has an active on-chain subscription on Starknet in under 5 lines of code.
+        </p>
+        <DeveloperIntegrationSection />
+      </section>
     </main>
   );
 }
@@ -273,4 +291,109 @@ function ResultValid({
 
 function wait(ms: number) {
   return new Promise((r) => window.setTimeout(r, ms));
+}
+
+function DeveloperIntegrationSection() {
+  const [lang, setLang] = useState<"ts" | "python" | "curl">("ts");
+  const [copied, setCopied] = useState(false);
+
+  const snippets = {
+    ts: `import { RpcProvider } from "starknet";
+
+// Keepr Subscription Helper on Starknet Mainnet
+const HELPER_ADDRESS = "0x02f23246ebf4585121b6d05f96fc102f1d5ba596d66e5d8ff8e3eecb2fb37fa1";
+const provider = new RpcProvider({ 
+  nodeUrl: "https://starknet-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY" 
+});
+
+/**
+ * Verifies if a user's pseudonymous sub_id has an active subscription.
+ * Works for Telegram bots, Discord bots, or API middlewares with ZERO database knowledge.
+ */
+export async function isSubscriptionActive(subId: string): Promise<boolean> {
+  const res = await provider.callContract({
+    contractAddress: HELPER_ADDRESS,
+    entrypoint: "is_active",
+    calldata: [subId],
+  });
+  return res.result[0] === "0x1";
+}`,
+    python: `import asyncio
+from starknet_py.net.full_node_client import FullNodeClient
+
+# Keepr Subscription Helper on Starknet Mainnet
+HELPER_ADDRESS = 0x02f23246ebf4585121b6d05f96fc102f1d5ba596d66e5d8ff8e3eecb2fb37fa1
+client = FullNodeClient(node_url="https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY")
+
+async def is_subscription_active(sub_id_hex: str) -> bool:
+    """
+    Verifies subscription state for a Telegram user or Discord member.
+    Zero KYC, zero database, pure Starknet state verification.
+    """
+    sub_id_int = int(sub_id_hex, 16)
+    result = await client.call_contract(
+        contract_address=HELPER_ADDRESS,
+        selector="is_active",
+        calldata=[sub_id_int]
+    )
+    return result[0] == 1
+
+# asyncio.run(is_subscription_active("0x123..."))`,
+    curl: `curl -X POST https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "starknet_call",
+    "params": [{
+      "contract_address": "0x02f23246ebf4585121b6d05f96fc102f1d5ba596d66e5d8ff8e3eecb2fb37fa1",
+      "entry_point_selector": "0x02a2818a7a8d56fa7ea777174dbff6361a861614f1076b92fbc892ea01eb65ad",
+      "calldata": ["0xYOUR_SUB_ID_HEX"]
+    }, "latest"],
+    "id": 1
+  }'`
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(snippets[lang]);
+    setCopied(true);
+    toast.success(`Copied ${lang.toUpperCase()} snippet to clipboard!`);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mt-5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+        <div className="flex items-center gap-1.5">
+          {(["ts", "python", "curl"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setLang(t)}
+              className={cn(
+                "px-3 py-1 font-mono text-xs uppercase tracking-wider transition-colors border",
+                lang === t
+                  ? "bg-accent text-cream border-accent font-semibold"
+                  : "bg-base text-muted border-line hover:text-ink"
+              )}
+            >
+              {t === "ts" ? "Node.js / TS" : t === "python" ? "Python" : "cURL / RPC"}
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCopy}
+          className="h-8 px-3 font-mono text-xs"
+        >
+          {copied ? <Check className="mr-1.5 size-3.5 text-emerald-400" /> : <Copy className="mr-1.5 size-3.5" />}
+          {copied ? "Copied" : "Copy Snippet"}
+        </Button>
+      </div>
+
+      <pre className="overflow-x-auto bg-ink p-4 font-mono text-xs text-cream/90 leading-relaxed border border-line shadow-inner">
+        <code>{snippets[lang]}</code>
+      </pre>
+    </div>
+  );
 }

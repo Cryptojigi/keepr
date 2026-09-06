@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ExternalLink, Globe, Lock, Plus, Sparkles } from "lucide-react";
+import { Check, ExternalLink, Globe, Lock, Plus, ShoppingBag, Sparkles, Tag } from "lucide-react";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
 import { CreateChannelModal } from "@/components/create-channel-modal";
+import { BuyVendedItemModal } from "@/components/buy-vended-item-modal";
 import { Kicker } from "@/components/kicker";
 import { LoadingVault } from "@/components/loading-vault";
 import { Button } from "@/components/ui/button";
@@ -16,14 +17,17 @@ import { formatStrk } from "@/lib/keepr/format";
 import {
   buildSubscribeActions,
   computeAuthCommit,
+  computeDeterministicSalt,
   computeSubId,
   isAccountDeployed,
   refreshLiveBalances,
 } from "@/lib/keepr/onchain";
+import { fetchRegistryChannels, fetchAccessPassesFromRegistry } from "@/lib/supabase/registry";
 import { getAllCreators, useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
 import { parseStarknetError } from "@/lib/keepr/errors";
-import type { Creator, TierId } from "@/lib/keepr/types";
+import { decodeChannelSharePayload } from "@/lib/keepr/share";
+import type { Creator, TierId, VendedItem } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
 
 export default function SubscribePage() {
@@ -48,9 +52,24 @@ function SubscribeContent() {
   const subs = useKeepr((s) => s.subs);
   const customCreators = useKeepr((s) => s.customCreators);
   const creatorRates = useKeepr((s) => s.creatorRates);
+  const vendedItems = useKeepr((s) => s.vendedItems);
+  const purchases = useKeepr((s) => s.purchases);
+  const importChannelFromPayload = useKeepr((s) => s.importChannelFromPayload);
+  const mergeRegistryChannels = useKeepr((s) => s.mergeRegistryChannels);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { formatStrkUsd } = useStrkPrice();
+
+  // Load public channels from Supabase registry on mount
+  useEffect(() => {
+    fetchRegistryChannels().then(({ channels, rates }) => {
+      if (channels.length > 0) {
+        fetchAccessPassesFromRegistry().then((passes) => {
+          mergeRegistryChannels(channels, rates, passes);
+        });
+      }
+    });
+  }, [mergeRegistryChannels]);
 
   // Ready wallet on-chain state
   const myWalletAccount = useStoreWallet((s) => s.myWalletAccount);
@@ -65,6 +84,28 @@ function SubscribeContent() {
   const [tier, setTier] = useState<TierId>(1);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedBuyItem, setSelectedBuyItem] = useState<VendedItem | null>(null);
+  const [buyModalOpen, setBuyModalOpen] = useState(false);
+
+  // Handle direct portable channel data via ?data=<base64>
+  const dataParam = searchParams.get("data");
+  useEffect(() => {
+    if (dataParam) {
+      try {
+        const decoded = decodeChannelSharePayload(dataParam);
+        if (decoded) {
+          const imported = importChannelFromPayload(decoded);
+          setPicked(imported.id);
+          setTier(1);
+          toast.success(`Loaded channel: ${imported.name}`, {
+            description: "Channel rates & storefront goods loaded directly from link.",
+          });
+        }
+      } catch (err) {
+        console.warn("Could not decode portable channel payload:", err);
+      }
+    }
+  }, [dataParam, importChannelFromPayload]);
 
   // Handle direct link via ?channel=<id>
   const directChannelParam = searchParams.get("channel");
@@ -90,13 +131,19 @@ function SubscribeContent() {
     [creator, creatorRates],
   );
 
-  const selectedTier = useMemo(
-    () =>
-      creator && rates.length > 0
-        ? rates.find((t) => t.id === tier) ?? rates[1] ?? rates[0]
-        : null,
-    [creator, rates, tier],
-  );
+  const isSinglePlan = creator?.pricingType === "flat" || rates.length === 1;
+
+  useEffect(() => {
+    if (isSinglePlan && tier !== 0) {
+      setTier(0);
+    }
+  }, [isSinglePlan, tier]);
+
+  const selectedTier = useMemo(() => {
+    if (!creator || rates.length === 0) return null;
+    if (isSinglePlan) return rates[0];
+    return rates.find((t) => t.id === tier) ?? rates[1] ?? rates[0];
+  }, [creator, rates, tier, isSinglePlan]);
 
   const already = creator
     ? subs.some((s) => s.creatorId === creator.id && s.active)
@@ -104,6 +151,12 @@ function SubscribeContent() {
   const shortfall = selectedTier
     ? Math.max(0, selectedTier.strk - shieldedStrk)
     : 0;
+
+  // Active channel vended goods
+  const activeChannelVendedItems = useMemo(() => {
+    if (!creator) return [];
+    return vendedItems.filter((i) => i.creatorId === creator.id && i.active !== false);
+  }, [vendedItems, creator]);
 
   // Split channels:
   // 1. Public Custom Channels
@@ -156,12 +209,8 @@ function SubscribeContent() {
           return;
         }
 
-        // Generate client-side secret & salt
-        const salt =
-          "0x" +
-          Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("");
+        // Generate client-side secret & deterministic salt for cross-device zero-knowledge recovery
+        const salt = computeDeterministicSalt(connectedAddress, creator.id);
         const cancelSecret =
           "0x" +
           Array.from(crypto.getRandomValues(new Uint8Array(16)))
@@ -330,6 +379,13 @@ function SubscribeContent() {
                   subscribed={subs.some(
                     (s) => s.creatorId === directLinkedPrivateChannel.id && s.active,
                   )}
+                  goodsCount={
+                    vendedItems.filter(
+                      (i) =>
+                        i.creatorId === directLinkedPrivateChannel.id &&
+                        i.active !== false,
+                    ).length
+                  }
                   onPick={() => {
                     setPicked(directLinkedPrivateChannel.id);
                     setTier(1);
@@ -360,6 +416,11 @@ function SubscribeContent() {
                       subscribed={subs.some(
                         (s) => s.creatorId === c.id && s.active,
                       )}
+                      goodsCount={
+                        vendedItems.filter(
+                          (i) => i.creatorId === c.id && i.active !== false,
+                        ).length
+                      }
                       onPick={() => {
                         setPicked(c.id);
                         setTier(1);
@@ -396,6 +457,11 @@ function SubscribeContent() {
                     subscribed={subs.some(
                       (s) => s.creatorId === c.id && s.active,
                     )}
+                    goodsCount={
+                      vendedItems.filter(
+                        (i) => i.creatorId === c.id && i.active !== false,
+                      ).length
+                    }
                     onPick={() => {
                       setPicked(c.id);
                       setTier(1);
@@ -437,31 +503,58 @@ function SubscribeContent() {
               </div>
             )}
 
-            <div className="mt-5 flex flex-col gap-2">
-              {rates.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTier(t.id)}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-3 text-left transition-[background-color,box-shadow] duration-150",
-                    t.id === tier
-                      ? "bg-accent-muted shadow-[inset_3px_0_0_0_var(--color-accent)]"
-                      : "bg-raised/70 hover:bg-raised",
-                  )}
-                >
-                  <span className="font-mono text-xs uppercase tracking-[0.14em] text-gold">
-                    {t.name}
+            {isSinglePlan ? (
+              <div className="mt-5 border border-line/70 bg-raised p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent font-bold">
+                    One-Time Renewable Pass
                   </span>
-                  <span className="font-mono text-xs tabular-nums text-ink text-right">
-                    <span>{formatStrk(t.strk)} STRK</span>
-                    <span className="ml-1.5 text-[10px] text-muted">
-                      (~{formatStrkUsd(t.strk)})
+                  <span className="font-mono text-[9px] border border-accent/40 bg-accent/10 text-accent px-2 py-0.5 uppercase tracking-wider font-semibold">
+                    30 Days
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-baseline justify-between">
+                  <h3 className="font-display text-lg font-bold uppercase text-ink">
+                    {selectedTier.name}
+                  </h3>
+                  <p className="font-mono text-base font-bold text-ink">
+                    {formatStrk(selectedTier.strk)} STRK
+                    <span className="ml-1 text-xs font-normal text-muted">
+                      (~{formatStrkUsd(selectedTier.strk)})
                     </span>
-                  </span>
-                </button>
-              ))}
-            </div>
+                  </p>
+                </div>
+                <p className="mt-1 text-xs text-muted leading-relaxed font-prose">
+                  Single flat rate. Pay once for 30 days of access; renew anytime manually or via session key.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-col gap-2">
+                {rates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTier(t.id)}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-3 text-left transition-[background-color,box-shadow] duration-150",
+                      t.id === tier
+                        ? "bg-accent-muted shadow-[inset_3px_0_0_0_var(--color-accent)]"
+                        : "bg-raised/70 hover:bg-raised",
+                    )}
+                  >
+                    <span className="font-mono text-xs uppercase tracking-[0.14em] text-gold">
+                      {t.name}
+                    </span>
+                    <span className="font-mono text-xs tabular-nums text-ink text-right">
+                      <span>{formatStrk(t.strk)} STRK</span>
+                      <span className="ml-1.5 text-[10px] text-muted">
+                        (~{formatStrkUsd(t.strk)})
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <dl className="mt-5 space-y-2 border-t border-line pt-4 font-mono text-xs">
               <Row
@@ -513,6 +606,84 @@ function SubscribeContent() {
             <p className="mt-3 font-mono text-[10px] leading-relaxed text-subtle">
               Subscriptions can be cancelled on-chain at any time. Keepers cannot withdraw more than the configured tier rate.
             </p>
+
+            {/* Lifetime Access Passes & Channel Licenses */}
+            {activeChannelVendedItems.length > 0 && (
+              <div className="mt-6 border-t border-line pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <ShoppingBag className="size-3.5 text-accent" />
+                    <span className="font-display text-sm font-bold uppercase tracking-tight text-ink">
+                      Lifetime Access Passes ({activeChannelVendedItems.length})
+                    </span>
+                  </div>
+                  <span className="font-mono text-[9px] uppercase border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 font-semibold">
+                    Lifetime Pass
+                  </span>
+                </div>
+                <p className="font-sans text-xs text-muted leading-relaxed">
+                  Permanent channel passes, tools & agent licenses without recurring renewals. Saved directly in your vault.
+                </p>
+
+                <div className="space-y-2.5">
+                  {activeChannelVendedItems.map((item) => {
+                    const isPurchased = purchases.some((p) => p.itemId === item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-line/70 bg-raised/80 p-3 space-y-2 hover:border-accent/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-[9px] uppercase tracking-wider bg-base border border-line px-1.5 py-0.5 text-accent font-semibold">
+                            {item.category}
+                          </span>
+                          <span className="font-mono text-xs font-bold text-ink">
+                            {formatStrk(item.priceStrk)} STRK
+                            <span className="text-[10px] font-normal text-muted ml-1">
+                              (~{formatStrkUsd(item.priceStrk)})
+                            </span>
+                          </span>
+                        </div>
+                        <h4 className="font-display text-sm font-bold uppercase tracking-tight text-ink leading-snug">{item.title}</h4>
+                        <p className="font-sans text-xs text-muted line-clamp-2 leading-relaxed">{item.description}</p>
+                        <div className="pt-1 flex items-center justify-between border-t border-line/50">
+                          <span className="font-mono text-[10px] text-subtle">
+                            {item.salesCount || 0} claimed
+                          </span>
+                          {isPurchased ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBuyItem(item);
+                                setBuyModalOpen(true);
+                              }}
+                              className="h-7 text-[10px] font-mono border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                            >
+                              <Check className="mr-1 size-3" />
+                              Owned · View Access
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBuyItem(item);
+                                setBuyModalOpen(true);
+                              }}
+                              className="h-7 text-[10px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                            >
+                              Acquire Pass · {formatStrk(item.priceStrk)} STRK
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </aside>
         ) : (
           <aside className="h-fit bg-cream p-5 shadow-[var(--shadow-border)] lg:sticky lg:top-20">
@@ -556,6 +727,13 @@ function SubscribeContent() {
         }}
       />
       <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
+
+      <BuyVendedItemModal
+        open={buyModalOpen}
+        onOpenChange={setBuyModalOpen}
+        item={selectedBuyItem}
+        creator={creator}
+      />
     </main>
   );
 }
@@ -564,12 +742,14 @@ function CreatorCard({
   creator,
   active,
   subscribed,
+  goodsCount,
   onPick,
   formatStrkUsd,
 }: {
   creator: Creator;
   active: boolean;
   subscribed: boolean;
+  goodsCount?: number;
   onPick: () => void;
   formatStrkUsd: (amount: number) => string;
 }) {
@@ -602,6 +782,16 @@ function CreatorCard({
               COMMUNITY
             </span>
           )}
+          {creator.pricingType === "flat" ? (
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] border border-line px-1.5 py-0.2 bg-raised text-subtle font-semibold">
+              Single Plan
+            </span>
+          ) : null}
+          {goodsCount && goodsCount > 0 ? (
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] border border-emerald-500/30 px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 font-semibold flex items-center gap-1">
+              <ShoppingBag className="size-2.5" /> {goodsCount} {goodsCount === 1 ? "good" : "goods"}
+            </span>
+          ) : null}
         </div>
         {subscribed ? (
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent font-bold">

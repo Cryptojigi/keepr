@@ -14,15 +14,23 @@ import {
   ArrowRight,
   Check,
   Copy,
+  Download,
+  Edit3,
   ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   Globe,
   Lock,
   Plus,
+  RefreshCw,
   Settings2,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Tag,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Kicker } from "@/components/kicker";
@@ -37,12 +45,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CreateChannelModal } from "@/components/create-channel-modal";
+import { CreateVendedItemModal } from "@/components/create-vended-item-modal";
 import { DEMO_RECEIPTS, MRR_SERIES, isAddressEqual } from "@/lib/keepr/data";
 import { formatDate, formatStrk } from "@/lib/keepr/format";
 import { useKeepr } from "@/lib/keepr/store";
 import { useStrkPrice } from "@/lib/keepr/price";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
-import type { Creator, CreatorRate, TierId } from "@/lib/keepr/types";
+import { buildShareableChannelUrl } from "@/lib/keepr/share";
+import { PROTOCOL_FEE_BPS, calculateFeeSplit } from "@/lib/keepr/constants";
+import {
+  fetchRegistryChannels,
+  fetchAccessPassesFromRegistry,
+  saveChannelToRegistry,
+  saveAccessPassToRegistry,
+} from "@/lib/supabase/registry";
+import type { Creator, CreatorRate, PricingType, TierId, VendedItem } from "@/lib/keepr/types";
 import { cn } from "@/lib/utils";
 
 function truncateAddress(addr?: string | null) {
@@ -56,6 +73,21 @@ export default function CreatorPage() {
   const subs = useKeepr((s) => s.subs);
   const updateChannel = useKeepr((s) => s.updateChannel);
   const archiveChannel = useKeepr((s) => s.archiveChannel);
+  const deleteChannel = useKeepr((s) => s.deleteChannel);
+  const vendedItems = useKeepr((s) => s.vendedItems);
+  const deleteVendedItem = useKeepr((s) => s.deleteVendedItem);
+  const mergeRegistryChannels = useKeepr((s) => s.mergeRegistryChannels);
+
+  // Load public channels from Supabase registry on mount so creator channels are visible across all devices
+  useEffect(() => {
+    fetchRegistryChannels().then(({ channels, rates }) => {
+      if (channels.length > 0) {
+        fetchAccessPassesFromRegistry().then((passes) => {
+          mergeRegistryChannels(channels, rates, passes);
+        });
+      }
+    });
+  }, [mergeRegistryChannels]);
 
   // Wallet context
   const connectedAddress = useStoreWallet((s) => s.address);
@@ -78,14 +110,63 @@ export default function CreatorPage() {
     );
   }, [customCreators, activeAddress]);
 
+  function handleExportBackup() {
+    if (!activeAddress) {
+      toast.error("Connect wallet to export channel backup");
+      return;
+    }
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      ownerAddress: activeAddress,
+      channels: ownedChannels,
+      accessPasses: vendedItems.filter((v) =>
+        ownedChannels.some((c) => c.id === v.creatorId),
+      ),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `keepr-creator-backup-${activeAddress.slice(0, 8)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Creator backup JSON exported!");
+  }
+
+  function handleImportBackup(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.channels && Array.isArray(data.channels)) {
+          mergeRegistryChannels(data.channels, {}, data.accessPasses || []);
+          toast.success(`Imported ${data.channels.length} channels from backup`);
+        } else {
+          toast.error("Invalid backup file structure");
+        }
+      } catch {
+        toast.error("Failed to parse backup JSON");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
     null,
   );
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [chartOn, setChartOn] = useState(false);
+  const [vendedModalOpen, setVendedModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<VendedItem | null>(null);
 
   useEffect(() => {
     setChartOn(true);
@@ -124,26 +205,116 @@ export default function CreatorPage() {
   }, [subs, activeChannel]);
 
   const mrr = (activeChannel?.mrrStrk ?? 0) + extraMrr;
-  const churn = 3.8;
 
-  const series = useMemo(
-    () =>
-      MRR_SERIES.map((p, i) =>
+  // Lifetime pass metrics for the active channel
+  const channelVendedItems = useMemo(() => {
+    if (!activeChannel) return [];
+    return vendedItems.filter((i) => i.creatorId === activeChannel.id);
+  }, [vendedItems, activeChannel]);
+
+  const totalVendedRevenue = useMemo(() => {
+    return channelVendedItems.reduce(
+      (sum, item) => sum + item.priceStrk * (item.salesCount || 0),
+      0,
+    );
+  }, [channelVendedItems]);
+
+  const totalVendedSales = useMemo(() => {
+    return channelVendedItems.reduce(
+      (sum, item) => sum + (item.salesCount || 0),
+      0,
+    );
+  }, [channelVendedItems]);
+
+  const isCustomChannel = Boolean(activeChannel?.isCustom || activeChannel?.ownerAddress || !activeChannel?.isDemo);
+
+  // Inflow chart series: real dynamic 5-month curve for custom channels, demo curve for demo channels
+  const series = useMemo(() => {
+    if (!isCustomChannel && activeChannel?.isDemo) {
+      return MRR_SERIES.map((p, i) =>
         i === MRR_SERIES.length - 1 ? { ...p, v: mrr > 0 ? mrr : p.v } : p,
-      ),
-    [mrr],
-  );
+      );
+    }
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    const currentMonthIdx = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const windowMonths: { m: string; v: number }[] = [];
+    const totalCurrentInflow = mrr + totalVendedRevenue;
+
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonthIdx - i, 1);
+      const mLabel = monthNames[d.getMonth()];
+      windowMonths.push({
+        m: mLabel,
+        v: i === 0 ? totalCurrentInflow : 0,
+      });
+    }
+
+    return windowMonths;
+  }, [isCustomChannel, activeChannel?.isDemo, mrr, totalVendedRevenue]);
+
+  // Receipts: real statements for custom channels, demo receipts for demo channels
+  const channelReceipts: Array<{
+    id: string;
+    period: string;
+    amountStrk: number;
+    channels: number;
+    createdAt: number;
+  }> = useMemo(() => {
+    if (!isCustomChannel && activeChannel?.isDemo) {
+      return DEMO_RECEIPTS;
+    }
+
+    const totalInflows = mrr + totalVendedRevenue;
+    const totalPasses = subscribers + totalVendedSales;
+
+    if (totalInflows <= 0 && totalPasses <= 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const currentPeriod = `${now.toLocaleString("en-US", { month: "long" })} ${now.getFullYear()}`;
+
+    return [
+      {
+        id: `rcpt_${activeChannel?.id.slice(0, 8) || "chan"}_${now.getFullYear()}_${now.getMonth() + 1}`,
+        period: currentPeriod,
+        amountStrk: totalInflows,
+        channels: totalPasses,
+        createdAt: activeChannel?.createdAt || Date.now(),
+      },
+    ];
+  }, [isCustomChannel, activeChannel?.isDemo, activeChannel?.id, activeChannel?.createdAt, mrr, totalVendedRevenue, subscribers, totalVendedSales]);
 
   function handleCopyShareLink(channelId: string) {
-    const url =
+    if (!activeChannel) return;
+    const channelRates = useKeepr.getState().creatorRates[channelId] ?? [
+      { id: 0, name: "Standard", strk: 25 },
+    ];
+    const channelItems = useKeepr
+      .getState()
+      .vendedItems.filter((i) => i.creatorId === channelId);
+
+    const origin =
       typeof window !== "undefined"
-        ? `${window.location.origin}/subscribe?channel=${channelId}`
-        : `https://keepr.cash/subscribe?channel=${channelId}`;
+        ? window.location.origin
+        : "https://keepr.cash";
+
+    const url = buildShareableChannelUrl({
+      channel: activeChannel,
+      rates: channelRates,
+      items: channelItems,
+      origin,
+    });
 
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
-    toast.success("Share link copied to clipboard!", {
-      description: url,
+    toast.success("Self-describing channel link copied!", {
+      description:
+        "Link includes full channel metadata, pricing rates & storefront goods for instant cross-device sharing.",
     });
     setTimeout(() => setCopiedLink(false), 2000);
   }
@@ -363,15 +534,36 @@ export default function CreatorPage() {
           })}
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCreateModalOpen(true)}
-          className="font-mono text-[11px] uppercase tracking-[0.14em]"
-        >
-          <Plus className="mr-1.5 size-3.5" />
-          New Channel
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="cursor-pointer inline-flex items-center gap-1.5 border border-line bg-raised hover:bg-line/20 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors">
+            <Upload className="size-3" />
+            <span>Import</span>
+            <input
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImportBackup}
+            />
+          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportBackup}
+            className="font-mono text-[11px] uppercase tracking-[0.14em]"
+          >
+            <Download className="mr-1.5 size-3" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCreateModalOpen(true)}
+            className="font-mono text-[11px] uppercase tracking-[0.14em]"
+          >
+            <Plus className="mr-1.5 size-3.5" />
+            New Channel
+          </Button>
+        </div>
       </div>
 
       {activeChannel ? (
@@ -475,6 +667,16 @@ export default function CreatorPage() {
                     Archive
                   </Button>
                 ) : null}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="font-mono text-xs uppercase tracking-[0.12em] text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  Delete
+                </Button>
               </div>
             </div>
 
@@ -536,14 +738,177 @@ export default function CreatorPage() {
           </div>
 
           {/* Rate Book Configuration */}
-          <RateBook creatorId={activeChannel.id} />
+          <RateBook channel={activeChannel} />
+
+          {/* Lifetime Access Passes & Licenses Section */}
+          <section className="border border-line bg-raised p-5 shadow-[var(--shadow-border)]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Kicker>Lifetime Access Passes & Licenses</Kicker>
+                  <span className="font-mono text-[9px] uppercase border border-emerald-500/30 px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 font-semibold">
+                    Pay-Once · Perpetual Access
+                  </span>
+                </div>
+                <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight text-ink">
+                  Perpetual passes & single licenses.
+                </h2>
+                <p className="mt-1 font-sans text-xs sm:text-sm text-muted max-w-xl leading-relaxed">
+                  Issue standalone software licenses, permanent access keys, or perpetual research passes without recurring renewals. Buyers pay once in STRK and unlock permanent vault access.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="border border-line bg-base px-3 py-1.5 font-mono text-xs text-muted">
+                  <span className="text-subtle text-[10px] uppercase block">Platform Fee</span>
+                  <span className="text-emerald-400 font-bold">0% protocol (Mainnet v1)</span> · 100% net to your payout note
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setVendedModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-semibold"
+                >
+                  <Plus className="mr-1.5 size-3.5" />
+                  Issue Lifetime Pass
+                </Button>
+              </div>
+            </div>
+
+            {/* Passes Stats Bar */}
+            <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-px bg-line border border-line">
+              <div className="bg-base p-3 font-mono">
+                <span className="text-[10px] uppercase text-subtle block">Passes Issued</span>
+                <span className="text-lg font-bold text-ink">{channelVendedItems.length}</span>
+              </div>
+              <div className="bg-base p-3 font-mono">
+                <span className="text-[10px] uppercase text-subtle block">Passes Acquired</span>
+                <span className="text-lg font-bold text-ink">{totalVendedSales}</span>
+              </div>
+              <div className="bg-base p-3 font-mono col-span-2 sm:col-span-1">
+                <span className="text-[10px] uppercase text-subtle block">Gross STRK Earned</span>
+                <span className="text-lg font-bold text-emerald-400">
+                  {formatStrk(totalVendedRevenue)} STRK
+                  <span className="text-xs text-muted font-normal ml-1">
+                    (~{formatStrkUsd(totalVendedRevenue)})
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* List of items */}
+            {channelVendedItems.length > 0 ? (
+              <ul className="mt-4 divide-y divide-line border border-line bg-cream shadow-[var(--shadow-border)]">
+                {channelVendedItems.map((item) => {
+                  const split = calculateFeeSplit(item.priceStrk, PROTOCOL_FEE_BPS);
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4"
+                    >
+                      <div className="space-y-1 max-w-xl">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] uppercase tracking-wider bg-base border border-line px-2 py-0.5 text-accent font-semibold">
+                            {item.category}
+                          </span>
+                          <h3 className="font-display text-base font-bold uppercase tracking-tight text-ink">
+                            {item.title}
+                          </h3>
+                        </div>
+                        <p className="font-sans text-xs text-muted line-clamp-2 leading-relaxed">
+                          {item.description}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 pt-1 font-mono text-[11px] text-subtle">
+                          <span>
+                            Delivery target:{" "}
+                            <span className="text-muted font-mono break-all">{item.deliveryUrl.slice(0, 45)}...</span>
+                          </span>
+                          <span>·</span>
+                          <span className="text-emerald-400 font-medium">
+                            {item.salesCount || 0} sales recorded
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col sm:items-end justify-between items-center gap-2 shrink-0 border-t sm:border-t-0 border-line pt-2 sm:pt-0">
+                        <div className="text-right font-mono">
+                          <p className="text-base font-bold text-ink">
+                            {formatStrk(item.priceStrk)} STRK
+                          </p>
+                          <p className="text-[10px] text-emerald-400">
+                            +{split.creatorAmount} STRK net (100% direct)
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingItem(item);
+                              setVendedModalOpen(true);
+                            }}
+                            className="h-8 font-mono text-xs"
+                          >
+                            <Edit3 className="mr-1 size-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              deleteVendedItem(item.id);
+                              toast.success("Pass removed from catalog");
+                            }}
+                            className="h-8 font-mono text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="mt-4 border border-dashed border-line bg-base/50 p-8 text-center">
+                <ShoppingBag className="mx-auto size-8 text-muted" />
+                <h3 className="mt-2 font-display text-base font-bold uppercase tracking-tight text-ink">
+                  No lifetime passes issued yet
+                </h3>
+                <p className="mt-1 font-sans text-xs text-muted max-w-md mx-auto leading-relaxed">
+                  Issue perpetual software licenses, intelligence dossier passes, or invite keys. Subscribers can acquire them with STRK without recurring renewals.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setVendedModalOpen(true);
+                  }}
+                  className="mt-4 font-mono text-xs"
+                >
+                  <Plus className="mr-1.5 size-3.5" />
+                  Issue Your First Lifetime Pass
+                </Button>
+              </div>
+            )}
+          </section>
 
           {/* Inflows Chart */}
           <section className="bg-raised p-4 shadow-[var(--shadow-border)] sm:p-5 border border-line">
             <div className="flex items-center justify-between">
-              <Kicker>Private inflows</Kicker>
+              <div className="flex items-center gap-2">
+                <Kicker>Private inflows</Kicker>
+                {series.every((p) => p.v === 0) && (
+                  <span className="border border-line bg-surface/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-subtle">
+                    Awaiting Inflows
+                  </span>
+                )}
+              </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
-                6 months · channel ledger
+                5 months · channel ledger
               </p>
             </div>
             <div className="mt-4 h-52 w-full">
@@ -562,7 +927,7 @@ export default function CreatorPage() {
                         y2="1"
                       >
                         <stop
-                          offset="0%"
+                           offset="0%"
                           stopColor="var(--color-accent)"
                           stopOpacity={0.28}
                         />
@@ -588,6 +953,7 @@ export default function CreatorPage() {
                       axisLine={false}
                       fontFamily="var(--font-mono)"
                       tickFormatter={(v) => `${v}`}
+                      domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax * 1.2))]}
                     />
                     <Tooltip
                       contentStyle={{
@@ -619,47 +985,67 @@ export default function CreatorPage() {
           {/* Income Statements / Receipts */}
           <section className="bg-raised p-4 shadow-[var(--shadow-border)] sm:p-5 border border-line">
             <div className="flex items-center justify-between">
-              <Kicker>Income statements</Kicker>
+              <div className="flex items-center gap-2">
+                <Kicker>Income statements</Kicker>
+                {channelReceipts.length === 0 && (
+                  <span className="border border-line bg-surface/50 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-subtle">
+                    0 Settled
+                  </span>
+                )}
+              </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
                 Provable receipts
               </p>
             </div>
-            <ul className="mt-4 divide-y divide-line border-t border-line">
-              {DEMO_RECEIPTS.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-mono text-sm text-ink">{r.period}</p>
-                    <p className="mt-1 font-mono text-[11px] text-subtle">
-                      {r.channels} active passes · issued{" "}
-                      {formatDate(r.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="font-mono text-sm tabular-nums text-ink">
-                      {formatStrk(r.amountStrk)} STRK
-                      <span className="ml-1 text-muted text-xs">
-                        (~{formatStrkUsd(r.amountStrk)})
-                      </span>
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        downloadReceipt({
-                          ...r,
-                          creator: activeChannel.handle,
-                        })
-                      }
-                    >
-                      Export
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+
+            {channelReceipts.length === 0 ? (
+              <div className="mt-4 flex flex-col items-center justify-center border border-dashed border-line bg-base/50 px-6 py-10 text-center">
+                <FileText className="size-8 text-subtle" />
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.14em] text-muted">
+                  Awaiting First Epoch Settlement
+                </p>
+                <p className="mt-1 max-w-md text-xs text-subtle leading-relaxed">
+                  Provable viewing-key receipts generate automatically upon subscriber payment renewal or lifetime pass acquisition. Payer identities remain cryptographically shielded.
+                </p>
+              </div>
+            ) : (
+              <ul className="mt-4 divide-y divide-line border-t border-line">
+                {channelReceipts.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-mono text-sm text-ink">{r.period}</p>
+                      <p className="mt-1 font-mono text-[11px] text-subtle">
+                        {r.channels} active pass{r.channels === 1 ? "" : "es"} · issued{" "}
+                        {formatDate(r.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <p className="font-mono text-sm tabular-nums text-ink">
+                        {formatStrk(r.amountStrk)} STRK
+                        <span className="ml-1 text-muted text-xs">
+                          (~{formatStrkUsd(r.amountStrk)})
+                        </span>
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadReceipt({
+                            ...r,
+                            creator: activeChannel.handle,
+                          })
+                        }
+                      >
+                        Export
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       ) : null}
@@ -721,6 +1107,54 @@ export default function CreatorPage() {
         </Dialog>
       ) : null}
 
+      {/* Delete Channel Confirmation Dialog */}
+      {activeChannel ? (
+        <Dialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+        >
+          <DialogContent className="max-w-md border-red-500/30 bg-raised font-mono">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-tight text-red-400 flex items-center gap-2">
+                <Trash2 className="size-5" />
+                Delete Channel Permanently
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted leading-relaxed pt-2">
+                Are you sure you want to delete <strong className="text-ink font-mono">{activeChannel.name}</strong>?
+                This will permanently remove the channel, its rate book, and all associated lifetime access passes from Keepr and your Supabase database.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="border border-red-500/20 bg-red-500/10 p-3 font-mono text-[11px] text-red-300 leading-relaxed mt-2">
+              ⚠️ This action is immediate and cannot be undone. All public records and associated lifetime passes in Supabase will be permanently erased.
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const channelName = activeChannel.name;
+                  deleteChannel(activeChannel.id);
+                  setDeleteConfirmOpen(false);
+                  toast.success(`Channel "${channelName}" permanently deleted.`);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-mono text-xs"
+              >
+                <Trash2 className="mr-1.5 size-3.5" />
+                Confirm Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       {/* Create Channel Modal */}
       <CreateChannelModal
         open={createModalOpen}
@@ -729,6 +1163,17 @@ export default function CreatorPage() {
           setSelectedChannelId(id);
         }}
       />
+
+      {/* Create / Edit Vended Item Modal */}
+      {activeChannel ? (
+        <CreateVendedItemModal
+          open={vendedModalOpen}
+          onOpenChange={setVendedModalOpen}
+          creatorId={activeChannel.id}
+          creatorAddress={activeChannel.address}
+          editItem={editingItem}
+        />
+      ) : null}
     </main>
   );
 }
@@ -748,6 +1193,7 @@ function EditChannelDialog({
   const [serviceUrl, setServiceUrl] = useState(channel.serviceUrl ?? "");
   const [category, setCategory] = useState(channel.category);
   const [discoverable, setDiscoverable] = useState(channel.discoverable ?? true);
+  const [pricingType, setPricingType] = useState<PricingType>(channel.pricingType ?? "flat");
   const [urlError, setUrlError] = useState("");
 
   useEffect(() => {
@@ -755,6 +1201,7 @@ function EditChannelDialog({
     setServiceUrl(channel.serviceUrl ?? "");
     setCategory(channel.category);
     setDiscoverable(channel.discoverable ?? true);
+    setPricingType(channel.pricingType ?? "flat");
     setUrlError("");
   }, [channel, open]);
 
@@ -772,6 +1219,7 @@ function EditChannelDialog({
       serviceUrl: cleanUrl || undefined,
       category: category.trim() || channel.category,
       discoverable,
+      pricingType,
     });
   }
 
@@ -838,6 +1286,45 @@ function EditChannelDialog({
           <div className="flex items-center justify-between border-t border-line pt-4">
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink">
+                Pricing Model
+              </p>
+              <p className="text-[10px] text-muted">
+                {pricingType === "flat"
+                  ? "Single renewable plan (30 days flat fee)."
+                  : "3 distinct tier levels (Basic / Pro / VIP)."}
+              </p>
+            </div>
+            <div className="inline-flex border border-line bg-cream p-0.5 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setPricingType("flat")}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                  pricingType === "flat"
+                    ? "bg-accent text-cream shadow-sm"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                Single
+              </button>
+              <button
+                type="button"
+                onClick={() => setPricingType("tiered")}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                  pricingType === "tiered"
+                    ? "bg-accent text-cream shadow-sm"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                3 Tiers
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-line pt-4">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink">
                 Public Discovery
               </p>
               <p className="text-[10px] text-muted">
@@ -868,8 +1355,9 @@ function EditChannelDialog({
   );
 }
 
-function RateBook({ creatorId }: { creatorId: string }) {
+function RateBook({ channel }: { channel: Creator }) {
   const book = useKeepr((s) => s.creatorRates);
+  const setCreatorRates = useKeepr((s) => s.setCreatorRates);
   const defaultRates = useMemo<CreatorRate[]>(
     () => [
       { id: 0, name: "Basic", strk: 25 },
@@ -879,24 +1367,90 @@ function RateBook({ creatorId }: { creatorId: string }) {
     [],
   );
 
-  const rates = book[creatorId] ?? defaultRates;
+  const rates = book[channel.id] ?? defaultRates;
+  const isSinglePlan = channel.pricingType === "flat" || rates.length === 1;
+
+  function handleTogglePricingModel(targetType: "flat" | "tiered") {
+    if (targetType === "flat") {
+      const flatRate: CreatorRate = {
+        id: 0,
+        name: rates[0]?.name || "Standard Access",
+        strk: rates[0]?.strk || 25,
+      };
+      setCreatorRates(channel.id, [flatRate], "flat");
+      toast.success("Switched to Single Renewable Plan");
+    } else {
+      const tieredRates: CreatorRate[] = [
+        rates[0] ?? { id: 0, name: "Basic", strk: 25 },
+        rates[1] ?? { id: 1, name: "Pro", strk: 100 },
+        rates[2] ?? { id: 2, name: "VIP", strk: 250 },
+      ];
+      setCreatorRates(channel.id, tieredRates, "tiered");
+      toast.success("Switched to 3-Tiered Plans");
+    }
+  }
 
   return (
     <section className="mt-6 border border-line bg-raised p-5 shadow-[var(--shadow-border)]">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Kicker>Rate Book</Kicker>
+          <div className="flex items-center gap-2">
+            <Kicker>Rate Book</Kicker>
+            <span className="font-mono text-[9px] uppercase border border-line px-1.5 py-0.5 bg-cream text-subtle font-semibold">
+              {isSinglePlan ? "Single Renewable Plan" : "3-Tier Structure"}
+            </span>
+          </div>
           <h2 className="mt-2 font-display text-2xl font-bold uppercase tracking-tight">
-            Set what you charge.
+            {isSinglePlan ? "Set your flat rate." : "Set what you charge."}
           </h2>
+          <p className="mt-1 font-mono text-[11px] text-muted">
+            Protocol fee: <span className="text-emerald-400 font-semibold">2.5%</span> on-chain · <span className="text-ink font-semibold">97.5%</span> settles directly to payout wallet ({truncateAddress(channel.address)}).
+          </p>
         </div>
-        <p className="max-w-sm font-mono text-[11px] leading-relaxed text-subtle">
-          New rates apply immediately to future subscriptions and next renewals.
-        </p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="inline-flex border border-line bg-cream p-0.5 font-mono text-xs">
+            <button
+              type="button"
+              onClick={() => handleTogglePricingModel("flat")}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                isSinglePlan
+                  ? "bg-accent text-cream shadow-sm"
+                  : "text-muted hover:text-ink",
+              )}
+            >
+              Single Plan
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTogglePricingModel("tiered")}
+              className={cn(
+                "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                !isSinglePlan
+                  ? "bg-accent text-cream shadow-sm"
+                  : "text-muted hover:text-ink",
+              )}
+            >
+              3 Tiers
+            </button>
+          </div>
+          <p className="max-w-xs font-mono text-[11px] leading-relaxed text-subtle">
+            {isSinglePlan
+              ? "Subscribers pay this one-time flat rate for 30 days of access, renewable on expiry."
+              : "New rates apply immediately to future subscriptions and next renewals."}
+          </p>
+        </div>
       </div>
+
       <ul className="mt-4 divide-y divide-line bg-cream shadow-[var(--shadow-border)]">
         {rates.map((r) => (
-          <RateRow key={r.id} creatorId={creatorId} rate={r} />
+          <RateRow
+            key={r.id}
+            creatorId={channel.id}
+            rate={r}
+            isSinglePlan={isSinglePlan}
+          />
         ))}
       </ul>
     </section>
@@ -906,9 +1460,11 @@ function RateBook({ creatorId }: { creatorId: string }) {
 function RateRow({
   creatorId,
   rate,
+  isSinglePlan,
 }: {
   creatorId: string;
   rate: CreatorRate;
+  isSinglePlan?: boolean;
 }) {
   const setCreatorRate = useKeepr((s) => s.setCreatorRate);
   const [name, setName] = useState(rate.name);
@@ -935,11 +1491,14 @@ function RateRow({
     toast.success(`Updated ${name} rate to ${v} STRK / 30d`);
   }
 
+  const numStrk = Math.max(0, Number(strk) || 0);
+  const netCreatorStrk = calculateFeeSplit(numStrk, PROTOCOL_FEE_BPS).creatorAmount;
+
   return (
     <li className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_10rem_7rem] sm:items-end">
       <label className="block">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
-          Plan
+          {isSinglePlan ? "Plan Title" : "Plan Tier"}
         </span>
         <Input
           className="mt-1 uppercase tracking-[0.08em]"
@@ -968,11 +1527,16 @@ function RateRow({
           }}
         />
       </label>
-      <p className="font-mono text-xs tabular-nums text-muted sm:pb-3 sm:text-right">
-        {Number(strk) > 0
-          ? `~${formatStrkUsd(Number(strk))} USD`
-          : "$0.00 USD"}
-      </p>
+      <div className="font-mono text-xs tabular-nums text-muted sm:pb-3 sm:text-right">
+        <p className="text-ink">
+          {numStrk > 0 ? `~${formatStrkUsd(numStrk)} USD` : "$0.00 USD"}
+        </p>
+        {numStrk > 0 ? (
+          <p className="text-[10px] text-emerald-400">
+            +{netCreatorStrk} STRK net (100% direct)
+          </p>
+        ) : null}
+      </div>
     </li>
   );
 }
