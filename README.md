@@ -1,12 +1,12 @@
-# Keepr — Private Subscription Payments on STRK20
+# Keepr — Shielded Payments & Subscriptions on STRK20
 
 <p align="center">
   <img src="public/favicon.svg" alt="Keepr Logo" width="80" height="80" />
 </p>
 
 <p align="center">
-  <strong>Private, recurring subscription protocol for AI agents, research publications, and digital creators on Starknet.</strong><br />
-  Shield STRK tokens · Subscribe to channels · Auto-renew via keepers · Prove tier access with zero-knowledge proofs without revealing wallet addresses.
+  <strong>Shielded, recurring subscription protocol for AI agents, research publications, and digital creators on Starknet.</strong><br />
+  Shield STRK tokens · Settle via shielded notes · Auto-renew via keepers · Prove tier access with zero-knowledge proofs without exposing wallet addresses.
 </p>
 
 <p align="center">

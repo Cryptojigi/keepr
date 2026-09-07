@@ -1,5 +1,5 @@
 {
-  "name": "wallet_account_for_starknet",
+  "name": "keepr",
   "version": "0.1.0",
   "private": true,
   "scripts": {

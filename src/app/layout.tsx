@@ -30,16 +30,16 @@ const libreBaskerville = Libre_Baskerville({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://keepr-eta.vercel.app"),
-  title: "Keepr · Private Subscriptions on STRK20",
+  title: "Keepr · Shielded Payments & Subscriptions on STRK20",
   description:
-    "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
+    "Shielded payments and recurring subscriptions for AI agents and digital creators on STRK20. Settle via shielded notes, auto-renew via keepers, and prove tier access without wallet exposure.",
   icons: {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "Keepr · Private Subscriptions on STRK20",
+    title: "Keepr · Shielded Payments & Subscriptions on STRK20",
     description:
-      "Private subscriptions for AI agents and digital creators on STRK20. Shield, subscribe, auto-renew via keepers, and prove tier access without wallet scanning.",
+      "Shielded payments and recurring subscriptions for AI agents and digital creators on STRK20. Settle via shielded notes, auto-renew via keepers, and prove tier access without wallet exposure.",
     images: ["/og.jpg"],
   },
 };

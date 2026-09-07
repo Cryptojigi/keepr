@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node src/index.ts",
+    "check": "ts-node src/index.ts --dry-run",
     "dry-run": "ts-node src/index.ts --dry-run"
   },
   "dependencies": {
