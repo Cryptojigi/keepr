@@ -425,10 +425,10 @@ export default function SelectWallet({
       return (
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Live Balance Indicator */}
-          <div className="hidden sm:flex items-center gap-2 border border-line bg-raised px-2.5 py-1.5 font-mono text-xs shadow-[var(--shadow-border)]">
+          <div className="hidden sm:flex items-center gap-2 border border-line bg-raised px-2.5 py-1.5 font-prose text-xs shadow-[var(--shadow-border)]">
             <div className="flex items-center gap-1">
               <span className="text-[10px] uppercase text-subtle">Shielded:</span>
-              <span className="font-semibold text-accent">{formatStrk(shieldedStrk)}</span>
+              <span className="font-bold text-accent">{formatStrk(shieldedStrk)}</span>
             </div>
             <span className="text-line">|</span>
             <div className="flex items-center gap-1">
@@ -452,7 +452,7 @@ export default function SelectWallet({
           <button
             type="button"
             onClick={handleDisconnect}
-            className="flex h-10 sm:h-11 items-center gap-2 border border-line bg-cream px-2.5 sm:px-3 font-mono text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted transition-colors"
+            className="flex h-10 sm:h-11 items-center gap-2 border border-line bg-cream px-2.5 sm:px-3 font-prose text-xs uppercase tracking-[0.12em] text-ink shadow-[var(--shadow-border)] hover:bg-accent-muted transition-colors"
             title="Ready X connected · Click to disconnect"
           >
             <span className="led led-ok" aria-hidden />
@@ -471,7 +471,7 @@ export default function SelectWallet({
             setError("");
             setPickerOpen(true);
           }}
-          className="flex h-10 sm:h-11 items-center gap-1.5 border border-accent bg-accent px-3.5 sm:px-4 font-mono text-xs font-medium uppercase tracking-[0.14em] text-cream shadow-[var(--shadow-border)] hover:bg-accent-hover transition-colors"
+          className="flex h-10 sm:h-11 items-center gap-1.5 border border-accent bg-accent px-3.5 sm:px-4 font-prose text-xs font-medium uppercase tracking-[0.14em] text-cream shadow-[var(--shadow-border)] hover:bg-accent-hover transition-colors"
         >
           <ShieldCheck className="size-3.5 shrink-0" />
           <span>Connect</span>

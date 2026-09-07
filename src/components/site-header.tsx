@@ -63,7 +63,7 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base overflow-hidden">
+    <header className="keepr-header sticky top-0 z-40 border-b border-line bg-base overflow-hidden font-prose">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-5">
         <Link href="/" className="shrink-0" onClick={() => setMenu(false)}>
           <KeeprWordmark />
@@ -77,9 +77,9 @@ export function SiteHeader() {
                 href={item.href}
                 onClick={(e) => handleNavClick(item.href, e)}
                 className={cn(
-                  "px-2.5 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors duration-150",
+                  "px-2.5 py-3 font-prose text-xs uppercase tracking-[0.16em] transition-colors duration-150",
                   isActive
-                    ? "text-accent font-semibold"
+                    ? "text-accent font-bold"
                     : "text-muted hover:text-ink",
                 )}
               >
@@ -102,10 +102,10 @@ export function SiteHeader() {
         </div>
       </div>
       {menu ? (
-        <div className="border-t border-line bg-raised md:hidden">
+        <div className="border-t border-line bg-raised md:hidden font-prose">
           {/* Mobile Connected Balance Bar */}
           {connected && (
-            <div className="border-b border-line bg-cream px-5 py-2.5 flex items-center justify-between text-xs font-mono">
+            <div className="border-b border-line bg-cream px-5 py-2.5 flex items-center justify-between text-xs font-prose">
               <div className="flex items-center gap-2">
                 <span className="led led-ok" aria-hidden />
                 <span className="text-subtle text-[10px] uppercase">Shielded:</span>
@@ -126,8 +126,8 @@ export function SiteHeader() {
                   href={item.href}
                   onClick={(e) => handleNavClick(item.href, e)}
                   className={cn(
-                    "flex h-11 items-center font-mono text-xs uppercase tracking-[0.16em]",
-                    isActive ? "text-accent font-semibold" : "text-ink",
+                    "flex h-11 items-center font-prose text-xs uppercase tracking-[0.16em]",
+                    isActive ? "text-accent font-bold" : "text-ink",
                   )}
                 >
                   {item.label}
