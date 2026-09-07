@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://keepr-eta.vercel.app"><img src="https://img.shields.io/badge/Live_App-keepr--eta.vercel.app-64181a?style=flat-square" alt="Live App" /></a>
+  <a href="https://x.com/xynetech/status/2097064253798646041?s=20"><img src="https://img.shields.io/badge/Demo_Video-Watch_on_X-000000?style=flat-square&logo=x&logoColor=white" alt="Demo Video" /></a>
   <a href="https://voyager.online/contract/0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1"><img src="https://img.shields.io/badge/Starknet_Mainnet-0x02f2...7fa1-2f4a32?style=flat-square" alt="Starknet Mainnet Contract" /></a>
   <a href="https://strk20.starknet.io"><img src="https://img.shields.io/badge/Protocol-STRK20_Privacy_Pool-64181a?style=flat-square" alt="STRK20" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-gray?style=flat-square" alt="License" /></a>
