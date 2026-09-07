@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy, Code2 } from "lucide-react";
 import { useStoreWallet } from "@/app/components/Wallet/walletContext";
@@ -30,17 +30,44 @@ export default function VerifyPage() {
   const creatorRates = useKeepr((s) => s.creatorRates);
   const address = useKeepr((s) => s.address);
   const subs = useKeepr((s) => s.subs);
+  const customCreators = useKeepr((s) => s.customCreators);
 
   // Ready wallet state
   const isWalletConnected = useStoreWallet((s) => s.isConnected);
   const walletAddress = useStoreWallet((s) => s.address);
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [picked, setPicked] = useState("cipher");
   const [result, setResult] = useState<VerifiedPass | null>(null);
+  const [showDemoGates, setShowDemoGates] = useState(false);
+
+  // Active user subscriptions
+  const activeSubs = useMemo(() => subs.filter((s) => s.active), [subs]);
+  const subscribedChannels = useMemo(() => {
+    return activeSubs.map((s) => {
+      const found =
+        customCreators.find((c) => c.id === s.creatorId) ?? creatorById(s.creatorId);
+      return {
+        id: s.creatorId,
+        name: found?.name ?? s.creatorId,
+        tier: s.tier,
+        subId: s.id,
+      };
+    });
+  }, [activeSubs, customCreators]);
+
+  const [picked, setPicked] = useState<string>("cipher");
+
+  // Default to user's first active subscription if available
+  useEffect(() => {
+    if (subscribedChannels.length > 0) {
+      setPicked(subscribedChannels[0].id);
+    }
+  }, [subscribedChannels]);
 
   const challenge = `keepr:gate:${picked}:verify`;
-  const creator = creatorById(picked);
+  const creator = useMemo(() => {
+    return customCreators.find((c) => c.id === picked) ?? creatorById(picked);
+  }, [picked, customCreators]);
 
   const effectiveAddress = walletAddress || address;
   const isLive = isWalletConnected || connected;
@@ -121,28 +148,93 @@ export default function VerifyPage() {
       </p>
 
       <section className="mt-10 bg-raised p-5 shadow-[var(--shadow-border)]">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle">
-          Channel to gate
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {CREATORS.map((c) => (
+        <div className="flex items-center justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-subtle font-bold">
+            Channel to gate
+          </p>
+          {subscribedChannels.length > 0 && (
             <button
-              key={c.id}
               type="button"
-              onClick={() => {
-                setPicked(c.id);
-                setPhase("idle");
-              }}
-              className={`h-11 px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
-                c.id === picked
-                  ? "bg-accent text-cream"
-                  : "bg-transparent text-muted shadow-[var(--shadow-border)] hover:bg-accent-muted"
-              }`}
+              onClick={() => setShowDemoGates((v) => !v)}
+              className="font-mono text-[10px] uppercase text-muted hover:text-accent underline transition-colors"
             >
-              {c.name}
+              {showDemoGates ? "Hide Demo Channels" : "Test with Demo Channels"}
             </button>
-          ))}
+          )}
         </div>
+
+        {/* 1. If user holds active passes, show them first */}
+        {subscribedChannels.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent font-semibold flex items-center gap-1.5">
+              <span className="led led-ok" aria-hidden />
+              <span>Your Active Memberships</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {subscribedChannels.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setPicked(c.id);
+                    setPhase("idle");
+                    setResult(null);
+                  }}
+                  className={`h-11 px-3.5 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors flex items-center gap-2 border ${
+                    c.id === picked
+                      ? "bg-accent text-cream border-accent font-bold shadow-[var(--shadow-border)]"
+                      : "bg-cream text-ink border-line hover:bg-accent-muted"
+                  }`}
+                >
+                  <span className="size-2 rounded-full bg-ok" />
+                  <span>{c.name}</span>
+                  <span className="text-[9px] font-normal opacity-75">
+                    (Tier {c.tier})
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2. Demo Reference Channels */}
+        {(subscribedChannels.length === 0 || showDemoGates) && (
+          <div className={`space-y-2 ${subscribedChannels.length > 0 ? "mt-4 pt-3 border-t border-line/60" : "mt-3"}`}>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-subtle font-semibold">
+                {subscribedChannels.length > 0 ? "Simulation / Reference Channels" : "Reference Channels (Demo Simulation)"}
+              </p>
+              <span className="font-mono text-[9px] uppercase border border-line px-1.5 py-0.5 bg-cream text-muted font-semibold">
+                Demo
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {CREATORS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setPicked(c.id);
+                    setPhase("idle");
+                    setResult(null);
+                  }}
+                  className={`h-11 px-3 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors border ${
+                    c.id === picked
+                      ? "bg-accent text-cream border-accent font-bold"
+                      : "bg-transparent text-muted border-line/60 shadow-[var(--shadow-border)] hover:bg-accent-muted"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            {subscribedChannels.length === 0 && (
+              <p className="font-mono text-[10px] text-muted pt-1">
+                No active subscriptions found in this wallet. You can simulate the gate flow with reference channels above, or <Link href="/subscribe" className="text-accent underline font-semibold">subscribe to a channel</Link>.
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-6 bg-ink px-4 py-4 font-mono text-[11px] leading-6 text-cream/85">
           <p className="text-cream/75">challenge</p>

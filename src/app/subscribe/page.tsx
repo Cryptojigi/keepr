@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Check, ExternalLink, Globe, Lock, Plus, ShoppingBag, Sparkles, Tag } from "lucide-react";
@@ -86,6 +87,7 @@ function SubscribeContent() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedBuyItem, setSelectedBuyItem] = useState<VendedItem | null>(null);
   const [buyModalOpen, setBuyModalOpen] = useState(false);
+  const [showDemoChannels, setShowDemoChannels] = useState(false);
 
   // Handle direct portable channel data via ?data=<base64>
   const dataParam = searchParams.get("data");
@@ -397,7 +399,7 @@ function SubscribeContent() {
           )}
 
           {/* Live Community Channels (User Created) */}
-          {publicCustomChannels.length > 0 && (
+          {publicCustomChannels.length > 0 ? (
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-accent">
@@ -431,46 +433,113 @@ function SubscribeContent() {
                 ))}
               </ul>
             </section>
+          ) : (
+            /* Empty State when no community channels registered */
+            <div className="border border-line bg-raised/70 p-6 sm:p-8 text-center space-y-3">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent font-bold">
+                Registry Directory
+              </p>
+              <h3 className="font-display text-xl font-bold uppercase tracking-tight text-ink">
+                No Community Channels Listed Yet
+              </h3>
+              <p className="max-w-md mx-auto font-prose text-xs text-muted leading-relaxed">
+                No creator channels have been published to the public directory yet. You can launch your own channel in the Creator Studio or load reference demo channels below to test the protocol.
+              </p>
+              <div className="pt-2 flex flex-wrap justify-center gap-2.5">
+                <Button asChild size="sm">
+                  <Link href="/creator">Create Channel →</Link>
+                </Button>
+                {!showDemoChannels && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDemoChannels(true)}
+                    className="border-line bg-cream hover:bg-raised text-ink font-mono text-xs uppercase"
+                  >
+                    Load Demo Channels
+                  </Button>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Showcase Demo Channels */}
           <section className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-t border-line/70 pt-6">
-              <div>
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-subtle">
-                  Demo Channels
-                </p>
-                <p className="mt-0.5 font-mono text-[10px] text-muted">
-                  Preset reference channels demonstrating autonomous agent monetization
-                </p>
+            {!showDemoChannels ? (
+              <div className="border border-line/70 bg-raised/50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-ink">
+                      Try Demo Channels
+                    </p>
+                    <span className="font-mono text-[9px] uppercase tracking-wider border border-line px-1.5 py-0.5 bg-cream text-muted font-semibold">
+                      4 Presets Available
+                    </span>
+                  </div>
+                  <p className="mt-1 font-prose text-xs text-muted">
+                    Explore simulation channels demonstrating autonomous recurring keeper renewals.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDemoChannels(true)}
+                  className="font-mono text-xs uppercase shrink-0 border-line bg-cream hover:bg-raised text-ink"
+                >
+                  Load Demo Channels →
+                </Button>
               </div>
-              <span className="font-mono text-[9px] uppercase tracking-[0.16em] border border-line px-2 py-1 bg-cream text-muted font-bold">
-                DEMO SHOWCASE
-              </span>
-            </div>
-            <ul className="grid gap-4 sm:grid-cols-2">
-              {showcaseChannels.map((c) => (
-                <li key={c.id}>
-                  <CreatorCard
-                    creator={c}
-                    active={c.id === picked}
-                    subscribed={subs.some(
-                      (s) => s.creatorId === c.id && s.active,
-                    )}
-                    goodsCount={
-                      vendedItems.filter(
-                        (i) => i.creatorId === c.id && i.active !== false,
-                      ).length
-                    }
-                    onPick={() => {
-                      setPicked(c.id);
-                      setTier(1);
-                    }}
-                    formatStrkUsd={formatStrkUsd}
-                  />
-                </li>
-              ))}
-            </ul>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-t border-line/70 pt-6">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-subtle">
+                        Demo Channels
+                      </p>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] border border-line px-2 py-0.5 bg-cream text-muted font-bold">
+                        DEMO SHOWCASE
+                      </span>
+                    </div>
+                    <p className="mt-0.5 font-mono text-[10px] text-muted">
+                      Preset reference channels demonstrating autonomous agent monetization
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDemoChannels(false)}
+                    className="font-mono text-[10px] uppercase text-muted hover:text-accent underline transition-colors px-2 py-1"
+                  >
+                    Hide Demo Channels
+                  </button>
+                </div>
+                <ul className="grid gap-4 sm:grid-cols-2">
+                  {showcaseChannels.map((c) => (
+                    <li key={c.id}>
+                      <CreatorCard
+                        creator={c}
+                        active={c.id === picked}
+                        subscribed={subs.some(
+                          (s) => s.creatorId === c.id && s.active,
+                        )}
+                        goodsCount={
+                          vendedItems.filter(
+                            (i) => i.creatorId === c.id && i.active !== false,
+                          ).length
+                        }
+                        onPick={() => {
+                          setPicked(c.id);
+                          setTier(1);
+                        }}
+                        formatStrkUsd={formatStrkUsd}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         </div>
 

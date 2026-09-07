@@ -22,47 +22,101 @@ export default function Home() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-line flex items-center min-h-[48dvh] sm:min-h-[54dvh] md:min-h-[52dvh]">
+    <section className="relative overflow-hidden border-b border-line bg-base flex flex-col justify-center min-h-[56dvh] sm:min-h-[62dvh] py-12 sm:py-16 md:py-20">
       {/* Animated canvas background */}
       <div className="pointer-events-none absolute inset-0">
         <HeroCanvas />
-        {/* Bottom fade into page base */}
+        {/* Full-width dark vignette so text is crisp across the entire width */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, transparent 45%, rgba(190, 185, 179, 0.35) 75%, var(--color-base) 100%)",
+              "radial-gradient(ellipse at center, rgba(12, 4, 5, 0.48) 0%, rgba(12, 4, 5, 0.78) 100%)",
           }}
         />
-        {/* Left text-protection fade */}
+        {/* Bottom subtle blend into page base */}
         <div
-          className="absolute inset-0"
+          className="absolute inset-x-0 bottom-0 h-16 pointer-events-none"
           style={{
             background:
-              "linear-gradient(to right, rgba(8,2,2,0.72) 0%, rgba(8,2,2,0.3) 40%, transparent 70%)",
+              "linear-gradient(to bottom, transparent 0%, var(--color-base) 100%)",
           }}
         />
       </div>
 
       {/* Content */}
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-9 sm:py-12 md:py-14">
-        <Kicker className="text-cream/70">Protocol · {NETWORK_LABEL}</Kicker>
-        <div className="mt-4 flex items-start gap-3 sm:gap-4">
-          <KeeprMark size={36} className="mt-1.5 hidden sm:block shrink-0" />
-          <h1 className="font-display text-5xl font-bold uppercase leading-[0.92] tracking-tight text-cream sm:text-6xl md:text-7xl lg:text-8xl">
-            Keepr
-          </h1>
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-5">
+        {/* Kicker with dash */}
+        <div className="flex items-center gap-2.5 font-mono text-xs uppercase tracking-[0.2em] text-amber">
+          <span className="inline-block w-6 h-[2px] bg-amber shrink-0" aria-hidden="true" />
+          <span>KEEPR PROTOCOL · STARKNET MAINNET · STRK20</span>
         </div>
-        <p className="mt-4 max-w-lg text-base leading-relaxed text-cream/80 sm:text-lg font-prose">
-          Private on-chain subscriptions on Starknet. Shield your STRK tokens, subscribe to creators and AI agents, and let automated keepers handle renewals without exposing your wallet address.
+
+        {/* Main Title */}
+        <h1 className="mt-4 max-w-4xl font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold uppercase leading-[1.02] tracking-tight text-cream">
+          <span className="block">Shielded Payments</span>
+          <span className="block text-cream/95">& Subscriptions</span>
+        </h1>
+
+        {/* Subtitle */}
+        <p className="mt-4 max-w-2xl text-base sm:text-lg font-prose leading-relaxed text-cream/85">
+          Decentralized recurring payments on Starknet. Shield your STRK tokens into the privacy pool, subscribe to creators and AI agents, and let automated keepers execute renewals with zero identity exposure.
         </p>
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button asChild size="lg">
+
+        {/* Action Buttons Row */}
+        <div className="mt-7 flex flex-wrap items-center gap-3">
+          <Button asChild size="lg" className="border-accent bg-accent text-cream hover:bg-accent-hover font-mono text-xs uppercase tracking-[0.14em]">
             <Link href="/subscribe">
               Explore Channels
-              <ArrowRight />
+              <ArrowRight className="size-4" />
             </Link>
           </Button>
+          <Button asChild variant="outline" size="lg" className="border-cream/30 bg-cream/10 text-cream hover:bg-cream/20 font-mono text-xs uppercase tracking-[0.14em]">
+            <a href="#privacy">
+              How It Works
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="border-cream/30 bg-cream/10 text-cream hover:bg-cream/20 font-mono text-xs uppercase tracking-[0.14em]">
+            <Link href="/docs">
+              Protocol Docs
+            </Link>
+          </Button>
+        </div>
+
+        {/* 4-Pillar Technical Grid */}
+        <div className="mt-12 pt-10 border-t border-cream/20 grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+          <div>
+            <p className="font-display text-xl sm:text-2xl font-bold uppercase tracking-tight text-cream">
+              Zero Exposure
+            </p>
+            <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-cream/70">
+              Shielded STRK20 Notes
+            </p>
+          </div>
+          <div>
+            <p className="font-display text-xl sm:text-2xl font-bold uppercase tracking-tight text-cream">
+              24/7 Keepers
+            </p>
+            <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-cream/70">
+              Autonomous Renewal Engine
+            </p>
+          </div>
+          <div>
+            <p className="font-display text-xl sm:text-2xl font-bold uppercase tracking-tight text-cream">
+              Prove Access
+            </p>
+            <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-cream/70">
+              Cryptographic Tier Passes
+            </p>
+          </div>
+          <div>
+            <p className="font-display text-xl sm:text-2xl font-bold uppercase tracking-tight text-cream">
+              Mainnet Live
+            </p>
+            <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-cream/70">
+              Verified Helper Contract
+            </p>
+          </div>
         </div>
       </div>
     </section>
