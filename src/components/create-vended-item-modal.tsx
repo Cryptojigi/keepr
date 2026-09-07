@@ -212,7 +212,7 @@ export function CreateVendedItemModal({
             </div>
             <div className="flex items-center justify-between font-mono text-[11px] text-subtle pt-1 border-t border-line/60">
               <span>Keepr Protocol fee (Mainnet v1):</span>
-              <span className="text-emerald-400 font-semibold">0% (0.00 STRK)</span>
+              <span className="text-accent font-bold">0% (0.00 STRK)</span>
             </div>
           </div>
 

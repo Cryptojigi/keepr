@@ -10,33 +10,26 @@ import {
   YAxis,
 } from "recharts";
 import {
-  Archive,
   ArrowRight,
   Check,
   Copy,
-  Download,
   Edit3,
   ExternalLink,
-  Eye,
-  EyeOff,
   FileText,
   Globe,
   Lock,
   Plus,
   RefreshCw,
-  Settings2,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   Tag,
   Trash2,
-  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Kicker } from "@/components/kicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -71,8 +64,6 @@ function truncateAddress(addr?: string | null) {
 export default function CreatorPage() {
   const customCreators = useKeepr((s) => s.customCreators);
   const subs = useKeepr((s) => s.subs);
-  const updateChannel = useKeepr((s) => s.updateChannel);
-  const archiveChannel = useKeepr((s) => s.archiveChannel);
   const deleteChannel = useKeepr((s) => s.deleteChannel);
   const vendedItems = useKeepr((s) => s.vendedItems);
   const deleteVendedItem = useKeepr((s) => s.deleteVendedItem);
@@ -110,58 +101,10 @@ export default function CreatorPage() {
     );
   }, [customCreators, activeAddress]);
 
-  function handleExportBackup() {
-    if (!activeAddress) {
-      toast.error("Connect wallet to export channel backup");
-      return;
-    }
-    const backup = {
-      exportedAt: new Date().toISOString(),
-      ownerAddress: activeAddress,
-      channels: ownedChannels,
-      accessPasses: vendedItems.filter((v) =>
-        ownedChannels.some((c) => c.id === v.creatorId),
-      ),
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `keepr-creator-backup-${activeAddress.slice(0, 8)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Creator backup JSON exported!");
-  }
-
-  function handleImportBackup(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (data.channels && Array.isArray(data.channels)) {
-          mergeRegistryChannels(data.channels, {}, data.accessPasses || []);
-          toast.success(`Imported ${data.channels.length} channels from backup`);
-        } else {
-          toast.error("Invalid backup file structure");
-        }
-      } catch {
-        toast.error("Failed to parse backup JSON");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }
-
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
     null,
   );
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [chartOn, setChartOn] = useState(false);
@@ -319,26 +262,7 @@ export default function CreatorPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   }
 
-  function handleToggleDiscoverable() {
-    if (!activeChannel) return;
-    const nextState = !activeChannel.discoverable;
-    updateChannel(activeChannel.id, { discoverable: nextState });
-    toast.success(
-      nextState
-        ? "Channel is now Public (visible in Explorer)"
-        : "Channel is now Private (accessible only via direct link)",
-    );
-  }
 
-  function handleArchiveChannel() {
-    if (!activeChannel) return;
-    archiveChannel(activeChannel.id);
-    setArchiveConfirmOpen(false);
-    toast.success("Channel archived", {
-      description:
-        "Channel is unlisted and closed to new subscribers. Existing subscriptions remain active until expiry.",
-    });
-  }
 
   // 1) DISCONNECTED STATE
   if (!isEffectiveConnected) {
@@ -520,12 +444,15 @@ export default function CreatorPage() {
                 )}
               >
                 <span>{c.name}</span>
-                {c.archived ? (
-                  <span className="text-[9px] bg-red-500/20 text-red-400 px-1 py-0.5 rounded">
-                    Archived
-                  </span>
-                ) : !c.discoverable ? (
-                  <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.5 rounded">
+                {!c.discoverable ? (
+                  <span
+                    className={cn(
+                      "text-[9px] px-1.5 py-0.5 font-mono uppercase tracking-wider font-bold",
+                      isSelected
+                        ? "bg-cream/20 text-cream"
+                        : "bg-base border border-line text-ink/70",
+                    )}
+                  >
                     Private
                   </span>
                 ) : null}
@@ -535,30 +462,10 @@ export default function CreatorPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer inline-flex items-center gap-1.5 border border-line bg-raised hover:bg-line/20 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors">
-            <Upload className="size-3" />
-            <span>Import</span>
-            <input
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImportBackup}
-            />
-          </label>
           <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportBackup}
-            className="font-mono text-[11px] uppercase tracking-[0.14em]"
-          >
-            <Download className="mr-1.5 size-3" />
-            Export
-          </Button>
-          <Button
-            variant="outline"
             size="sm"
             onClick={() => setCreateModalOpen(true)}
-            className="font-mono text-[11px] uppercase tracking-[0.14em]"
+            className="bg-accent hover:bg-accent-hover text-cream font-mono text-[11px] uppercase tracking-[0.14em] font-semibold"
           >
             <Plus className="mr-1.5 size-3.5" />
             New Channel
@@ -574,18 +481,13 @@ export default function CreatorPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <Kicker>{activeChannel.category}</Kicker>
-                  {activeChannel.archived ? (
-                    <span className="inline-flex items-center gap-1 border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-red-400">
-                      <Archive className="size-3" />
-                      Archived (No New Subs)
-                    </span>
-                  ) : activeChannel.discoverable ? (
-                    <span className="inline-flex items-center gap-1 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+                  {activeChannel.discoverable ? (
+                    <span className="inline-flex items-center gap-1 border border-[#2f4a32]/40 bg-[#2f4a32]/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#2f4a32] font-semibold">
                       <Globe className="size-3" />
                       Public · Listed on Explorer
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-amber-300">
+                    <span className="inline-flex items-center gap-1 border border-[#5a4018]/40 bg-[#5a4018]/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#5a4018] font-semibold">
                       <Lock className="size-3" />
                       Private · Unlisted (Link-Only)
                     </span>
@@ -615,7 +517,7 @@ export default function CreatorPage() {
                 >
                   {copiedLink ? (
                     <>
-                      <Check className="mr-1.5 size-3.5 text-emerald-400" />
+                      <Check className="mr-1.5 size-3.5 text-accent" />
                       Copied!
                     </>
                   ) : (
@@ -629,53 +531,11 @@ export default function CreatorPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleToggleDiscoverable}
-                  className="font-mono text-xs uppercase tracking-[0.12em]"
-                  title="Toggle discovery in Explorer"
-                >
-                  {activeChannel.discoverable ? (
-                    <>
-                      <EyeOff className="mr-1.5 size-3.5 text-amber-400" />
-                      Make Private
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="mr-1.5 size-3.5 text-emerald-400" />
-                      Make Public
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditModalOpen(true)}
-                  className="font-mono text-xs uppercase tracking-[0.12em]"
-                >
-                  <Settings2 className="mr-1.5 size-3.5" />
-                  Edit Settings
-                </Button>
-
-                {!activeChannel.archived ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setArchiveConfirmOpen(true)}
-                    className="font-mono text-xs uppercase tracking-[0.12em] text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
-                  >
-                    <Archive className="mr-1.5 size-3.5" />
-                    Archive
-                  </Button>
-                ) : null}
-
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => setDeleteConfirmOpen(true)}
-                  className="font-mono text-xs uppercase tracking-[0.12em] text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                  className="font-mono text-xs uppercase tracking-[0.12em] text-accent border border-accent/40 hover:bg-accent hover:text-cream transition-colors"
                 >
                   <Trash2 className="mr-1.5 size-3.5" />
-                  Delete
+                  Delete Channel
                 </Button>
               </div>
             </div>
@@ -704,15 +564,6 @@ export default function CreatorPage() {
                     </span>
                   )}
                 </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setEditModalOpen(true)}
-                  className="h-7 text-[11px] font-mono uppercase text-subtle hover:text-ink"
-                >
-                  {activeChannel.serviceUrl ? "Change URL" : "+ Add Service Link"}
-                </Button>
               </div>
             </div>
           </div>
@@ -746,7 +597,7 @@ export default function CreatorPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <Kicker>Lifetime Access Passes & Licenses</Kicker>
-                  <span className="font-mono text-[9px] uppercase border border-emerald-500/30 px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 font-semibold">
+                  <span className="font-mono text-[9px] uppercase border border-[#2f4a32]/40 px-2 py-0.5 bg-[#2f4a32]/10 text-[#2f4a32] font-semibold">
                     Pay-Once · Perpetual Access
                   </span>
                 </div>
@@ -761,7 +612,7 @@ export default function CreatorPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="border border-line bg-base px-3 py-1.5 font-mono text-xs text-muted">
                   <span className="text-subtle text-[10px] uppercase block">Platform Fee</span>
-                  <span className="text-emerald-400 font-bold">0% protocol (Mainnet v1)</span> · 100% net to your payout note
+                  <span className="text-accent font-bold">0% protocol (Mainnet v1)</span> · 100% net to your payout note
                 </div>
                 <Button
                   size="sm"
@@ -769,7 +620,7 @@ export default function CreatorPage() {
                     setEditingItem(null);
                     setVendedModalOpen(true);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-semibold"
+                  className="bg-accent hover:bg-accent-hover text-cream font-mono text-xs uppercase tracking-[0.14em] font-semibold"
                 >
                   <Plus className="mr-1.5 size-3.5" />
                   Issue Lifetime Pass
@@ -789,7 +640,7 @@ export default function CreatorPage() {
               </div>
               <div className="bg-base p-3 font-mono col-span-2 sm:col-span-1">
                 <span className="text-[10px] uppercase text-subtle block">Gross STRK Earned</span>
-                <span className="text-lg font-bold text-emerald-400">
+                <span className="text-lg font-bold text-ink">
                   {formatStrk(totalVendedRevenue)} STRK
                   <span className="text-xs text-muted font-normal ml-1">
                     (~{formatStrkUsd(totalVendedRevenue)})
@@ -826,7 +677,7 @@ export default function CreatorPage() {
                             <span className="text-muted font-mono break-all">{item.deliveryUrl.slice(0, 45)}...</span>
                           </span>
                           <span>·</span>
-                          <span className="text-emerald-400 font-medium">
+                          <span className="text-[#2f4a32] font-semibold">
                             {item.salesCount || 0} sales recorded
                           </span>
                         </div>
@@ -837,7 +688,7 @@ export default function CreatorPage() {
                           <p className="text-base font-bold text-ink">
                             {formatStrk(item.priceStrk)} STRK
                           </p>
-                          <p className="text-[10px] text-emerald-400">
+                          <p className="text-[10px] text-accent font-semibold">
                             +{split.creatorAmount} STRK net (100% direct)
                           </p>
                         </div>
@@ -861,7 +712,7 @@ export default function CreatorPage() {
                               deleteVendedItem(item.id);
                               toast.success("Pass removed from catalog");
                             }}
-                            className="h-8 font-mono text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                            className="h-8 font-mono text-xs text-accent border border-accent/40 hover:bg-accent hover:text-cream"
                           >
                             <Trash2 className="size-3" />
                           </Button>
@@ -882,12 +733,11 @@ export default function CreatorPage() {
                 </p>
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={() => {
                     setEditingItem(null);
                     setVendedModalOpen(true);
                   }}
-                  className="mt-4 font-mono text-xs"
+                  className="mt-4 bg-accent hover:bg-accent-hover text-cream font-mono text-xs uppercase tracking-[0.14em] font-semibold"
                 >
                   <Plus className="mr-1.5 size-3.5" />
                   Issue Your First Lifetime Pass
@@ -1050,83 +900,26 @@ export default function CreatorPage() {
         </div>
       ) : null}
 
-      {/* Edit Channel Settings Dialog */}
-      {activeChannel ? (
-        <EditChannelDialog
-          open={editModalOpen}
-          onOpenChange={setEditModalOpen}
-          channel={activeChannel}
-          onSave={(patch) => {
-            updateChannel(activeChannel.id, patch);
-            setEditModalOpen(false);
-            toast.success("Channel settings updated");
-          }}
-        />
-      ) : null}
-
-      {/* Archive Channel Confirmation Dialog */}
-      {activeChannel ? (
-        <Dialog
-          open={archiveConfirmOpen}
-          onOpenChange={setArchiveConfirmOpen}
-        >
-          <DialogContent className="max-w-md border-line bg-raised font-mono">
-            <DialogHeader>
-              <DialogTitle className="font-display text-xl uppercase tracking-tight text-red-400">
-                Archive Channel?
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted leading-relaxed pt-2">
-                Archiving <strong>{activeChannel.name}</strong> will
-                immediately unlist it from discovery and reject all new
-                subscription attempts.
-                <br />
-                <br />
-                Existing subscribers will retain access until their paid 30-day
-                period expires. This action cannot be easily undone.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="mt-4 flex items-center justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setArchiveConfirmOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleArchiveChannel}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Confirm Archive
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-
       {/* Delete Channel Confirmation Dialog */}
       {activeChannel ? (
         <Dialog
           open={deleteConfirmOpen}
           onOpenChange={setDeleteConfirmOpen}
         >
-          <DialogContent className="max-w-md border-red-500/30 bg-raised font-mono">
+          <DialogContent className="max-w-md border border-accent/40 bg-raised font-mono shadow-[var(--shadow-border)]">
             <DialogHeader>
-              <DialogTitle className="font-display text-xl uppercase tracking-tight text-red-400 flex items-center gap-2">
-                <Trash2 className="size-5" />
+              <DialogTitle className="font-display text-xl uppercase tracking-tight text-accent flex items-center gap-2">
+                <Trash2 className="size-5 text-accent" />
                 Delete Channel Permanently
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted leading-relaxed pt-2">
-                Are you sure you want to delete <strong className="text-ink font-mono">{activeChannel.name}</strong>?
-                This will permanently remove the channel, its rate book, and all associated lifetime access passes from Keepr and your Supabase database.
+              <DialogDescription className="text-xs text-ink/80 leading-relaxed pt-2">
+                Are you sure you want to delete <strong className="text-ink font-mono font-bold">{activeChannel.name}</strong>?
+                This will permanently remove the channel, its rate book, and all associated lifetime access passes from Keepr.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="border border-red-500/20 bg-red-500/10 p-3 font-mono text-[11px] text-red-300 leading-relaxed mt-2">
-              ⚠️ This action is immediate and cannot be undone. All public records and associated lifetime passes in Supabase will be permanently erased.
+            <div className="border border-accent/30 bg-accent/10 p-3 font-mono text-xs text-ink leading-relaxed mt-2">
+              <strong className="text-accent font-bold mr-1">WARNING:</strong> This action is immediate and cannot be undone. All public records and associated lifetime passes will be permanently erased.
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-3 pt-2">
@@ -1134,6 +927,7 @@ export default function CreatorPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setDeleteConfirmOpen(false)}
+                className="font-mono text-xs uppercase tracking-wider text-ink border-line hover:bg-cream"
               >
                 Cancel
               </Button>
@@ -1145,7 +939,7 @@ export default function CreatorPage() {
                   setDeleteConfirmOpen(false);
                   toast.success(`Channel "${channelName}" permanently deleted.`);
                 }}
-                className="bg-red-600 hover:bg-red-700 text-white font-mono text-xs"
+                className="bg-accent hover:bg-accent-hover text-cream font-mono text-xs uppercase tracking-[0.14em] font-semibold flex items-center gap-1.5 px-4 py-2"
               >
                 <Trash2 className="mr-1.5 size-3.5" />
                 Confirm Delete
@@ -1178,182 +972,7 @@ export default function CreatorPage() {
   );
 }
 
-function EditChannelDialog({
-  open,
-  onOpenChange,
-  channel,
-  onSave,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  channel: Creator;
-  onSave: (patch: Partial<Creator>) => void;
-}) {
-  const [blurb, setBlurb] = useState(channel.blurb);
-  const [serviceUrl, setServiceUrl] = useState(channel.serviceUrl ?? "");
-  const [category, setCategory] = useState(channel.category);
-  const [discoverable, setDiscoverable] = useState(channel.discoverable ?? true);
-  const [pricingType, setPricingType] = useState<PricingType>(channel.pricingType ?? "flat");
-  const [urlError, setUrlError] = useState("");
 
-  useEffect(() => {
-    setBlurb(channel.blurb);
-    setServiceUrl(channel.serviceUrl ?? "");
-    setCategory(channel.category);
-    setDiscoverable(channel.discoverable ?? true);
-    setPricingType(channel.pricingType ?? "flat");
-    setUrlError("");
-  }, [channel, open]);
-
-  function handleSave() {
-    let cleanUrl = serviceUrl.trim();
-    if (cleanUrl) {
-      if (!/^https?:\/\//i.test(cleanUrl)) {
-        setUrlError("Service URL must start with http:// or https://");
-        return;
-      }
-    }
-
-    onSave({
-      blurb: blurb.trim() || channel.blurb,
-      serviceUrl: cleanUrl || undefined,
-      category: category.trim() || channel.category,
-      discoverable,
-      pricingType,
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-line bg-raised font-mono">
-        <DialogHeader>
-          <DialogTitle className="font-display text-xl uppercase tracking-tight">
-            Edit Channel Settings
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted">
-            Update your public blurb, billable service destination, and
-            discovery listing.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="mt-4 space-y-4 text-xs">
-          <div>
-            <label className="block text-[10px] uppercase tracking-[0.16em] text-subtle mb-1">
-              Category
-            </label>
-            <Input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. AI Agent, Signals, Engineering"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-[0.16em] text-subtle mb-1">
-              Channel Blurb / Description
-            </label>
-            <textarea
-              rows={3}
-              value={blurb}
-              onChange={(e) => setBlurb(e.target.value)}
-              className="w-full border border-line bg-base p-2 font-mono text-xs text-ink focus:outline-none focus:border-accent"
-              placeholder="Tell subscribers what value they receive..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase tracking-[0.16em] text-subtle mb-1">
-              Billable Service URL (Discord, Telegram, API, etc.)
-            </label>
-            <Input
-              value={serviceUrl}
-              onChange={(e) => {
-                setServiceUrl(e.target.value);
-                setUrlError("");
-              }}
-              placeholder="https://t.me/+xyz or https://api.service.com"
-            />
-            {urlError ? (
-              <p className="mt-1 text-[11px] text-red-400">{urlError}</p>
-            ) : (
-              <p className="mt-1 text-[10px] text-muted">
-                Active subscribers can click "Access Gated Service" to visit
-                this link. Unsubscribed users see a locked gate.
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between border-t border-line pt-4">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink">
-                Pricing Model
-              </p>
-              <p className="text-[10px] text-muted">
-                {pricingType === "flat"
-                  ? "Single renewable plan (30 days flat fee)."
-                  : "3 distinct tier levels (Basic / Pro / VIP)."}
-              </p>
-            </div>
-            <div className="inline-flex border border-line bg-cream p-0.5 font-mono text-xs">
-              <button
-                type="button"
-                onClick={() => setPricingType("flat")}
-                className={cn(
-                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-                  pricingType === "flat"
-                    ? "bg-accent text-cream shadow-sm"
-                    : "text-muted hover:text-ink",
-                )}
-              >
-                Single
-              </button>
-              <button
-                type="button"
-                onClick={() => setPricingType("tiered")}
-                className={cn(
-                  "px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-                  pricingType === "tiered"
-                    ? "bg-accent text-cream shadow-sm"
-                    : "text-muted hover:text-ink",
-                )}
-              >
-                3 Tiers
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-line pt-4">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink">
-                Public Discovery
-              </p>
-              <p className="text-[10px] text-muted">
-                List this channel in the public /subscribe catalog.
-              </p>
-            </div>
-            <Switch
-              checked={discoverable}
-              onCheckedChange={setDiscoverable}
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSave}>
-            Save Changes
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function RateBook({ channel }: { channel: Creator }) {
   const book = useKeepr((s) => s.creatorRates);
@@ -1404,7 +1023,7 @@ function RateBook({ channel }: { channel: Creator }) {
             {isSinglePlan ? "Set your flat rate." : "Set what you charge."}
           </h2>
           <p className="mt-1 font-mono text-[11px] text-muted">
-            Protocol fee: <span className="text-emerald-400 font-semibold">2.5%</span> on-chain · <span className="text-ink font-semibold">97.5%</span> settles directly to payout wallet ({truncateAddress(channel.address)}).
+            Protocol fee: <span className="text-accent font-semibold">0% (Mainnet v1)</span> · <span className="text-ink font-semibold">100%</span> settles directly to payout wallet ({truncateAddress(channel.address)}).
           </p>
         </div>
 
@@ -1532,7 +1151,7 @@ function RateRow({
           {numStrk > 0 ? `~${formatStrkUsd(numStrk)} USD` : "$0.00 USD"}
         </p>
         {numStrk > 0 ? (
-          <p className="text-[10px] text-emerald-400">
+          <p className="text-[10px] text-accent font-semibold">
             +{netCreatorStrk} STRK net (100% direct)
           </p>
         ) : null}

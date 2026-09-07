@@ -617,7 +617,7 @@ function SubscribeContent() {
                       Lifetime Access Passes ({activeChannelVendedItems.length})
                     </span>
                   </div>
-                  <span className="font-mono text-[9px] uppercase border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 font-semibold">
+                  <span className="font-mono text-[9px] uppercase border border-[#2f4a32]/40 bg-[#2f4a32]/10 text-[#2f4a32] px-2 py-0.5 font-bold tracking-wider">
                     Lifetime Pass
                   </span>
                 </div>
@@ -659,7 +659,7 @@ function SubscribeContent() {
                                 setSelectedBuyItem(item);
                                 setBuyModalOpen(true);
                               }}
-                              className="h-7 text-[10px] font-mono border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                              className="h-7 text-[10px] font-mono border border-[#2f4a32]/40 text-[#2f4a32] bg-[#2f4a32]/10 hover:bg-[#2f4a32]/20 font-semibold"
                             >
                               <Check className="mr-1 size-3" />
                               Owned · View Access
@@ -672,7 +672,7 @@ function SubscribeContent() {
                                 setSelectedBuyItem(item);
                                 setBuyModalOpen(true);
                               }}
-                              className="h-7 text-[10px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                              className="h-7 text-[10px] font-mono bg-accent hover:bg-accent-hover text-cream font-semibold uppercase tracking-[0.1em]"
                             >
                               Acquire Pass · {formatStrk(item.priceStrk)} STRK
                             </Button>
@@ -788,7 +788,7 @@ function CreatorCard({
             </span>
           ) : null}
           {goodsCount && goodsCount > 0 ? (
-            <span className="font-mono text-[9px] uppercase tracking-[0.12em] border border-emerald-500/30 px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 font-semibold flex items-center gap-1">
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] border border-[#2f4a32]/40 px-1.5 py-0.5 bg-[#2f4a32]/10 text-[#2f4a32] font-semibold flex items-center gap-1">
               <ShoppingBag className="size-2.5" /> {goodsCount} {goodsCount === 1 ? "good" : "goods"}
             </span>
           ) : null}

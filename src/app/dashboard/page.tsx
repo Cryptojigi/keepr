@@ -360,8 +360,8 @@ function ChannelRow({
           </div>
           <div className="flex items-center gap-2">
             <span className="stamp">Active</span>
-            <span className="inline-flex items-center gap-1 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-emerald-400">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 border border-[#2f4a32]/40 bg-[#2f4a32]/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#2f4a32] font-semibold">
+              <span className="size-1.5 rounded-full bg-[#2f4a32] animate-pulse" />
               Keeper Monitored
             </span>
           </div>
@@ -555,7 +555,7 @@ function PurchasedItemCard({
     <article className="border border-line bg-raised p-5 shadow-[var(--shadow-border)] flex flex-col justify-between space-y-4">
       <div className="space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-[9px] uppercase tracking-wider bg-base border border-emerald-500/30 text-emerald-400 px-2 py-0.5 font-semibold">
+          <span className="font-mono text-[9px] uppercase tracking-wider bg-[#2f4a32]/10 border border-[#2f4a32]/40 text-[#2f4a32] px-2 py-0.5 font-bold">
             Lifetime Pass
           </span>
           <span className="font-mono text-[10px] text-muted">
@@ -605,7 +605,7 @@ function PurchasedItemCard({
           title="Copy Access Link"
           className="h-8 px-2.5 font-mono text-xs"
         >
-          {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+          {copied ? <Check className="size-3.5 text-accent" /> : <Copy className="size-3.5" />}
         </Button>
         <a
           href={purchase.deliveryUrl}
@@ -615,7 +615,7 @@ function PurchasedItemCard({
         >
           <Button
             size="sm"
-            className="w-full h-8 font-mono text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center justify-center gap-1.5"
+            className="w-full h-8 font-mono text-xs bg-accent hover:bg-accent-hover text-cream font-semibold uppercase tracking-[0.12em] flex items-center justify-center gap-1.5"
           >
             <ExternalLink className="size-3.5" />
             Unlock Lifetime Pass

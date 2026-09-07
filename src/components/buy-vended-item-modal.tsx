@@ -387,7 +387,7 @@ export function BuyVendedItemModal({
               </div>
               <div className="flex items-center justify-between font-mono text-[11px] text-subtle pt-1 border-t border-line/60">
                 <span>Protocol Fee (Mainnet v1):</span>
-                <span className="text-emerald-400 font-semibold">0% (0.00 STRK)</span>
+                <span className="text-accent font-bold">0% (0.00 STRK)</span>
               </div>
               <div className="flex items-center justify-between font-mono text-[11px] text-accent pt-1 border-t border-line/60">
                 <span className="flex items-center gap-1">
@@ -413,12 +413,12 @@ export function BuyVendedItemModal({
 
             {/* Recipient Registration Guard Warning */}
             {recipientRegistered === false && (
-              <div className="border border-amber-500/40 bg-amber-500/10 p-3 font-mono text-xs text-amber-500 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold">
+              <div className="border border-[#5a4018]/40 bg-[#5a4018]/10 p-3 font-mono text-xs text-[#5a4018] space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
                   <span>⚠️</span>
                   <span>Registration Guard</span>
                 </div>
-                <p className="text-[11px] text-amber-400/90 leading-relaxed font-sans">
+                <p className="text-xs text-ink/90 leading-relaxed font-sans">
                   The creator hasn&apos;t activated STRK20 registration — purchases need it.
                 </p>
               </div>

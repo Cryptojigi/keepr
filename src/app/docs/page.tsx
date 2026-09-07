@@ -21,8 +21,9 @@ const SECTIONS = [
   { id: "keeper", label: "Keeper", children: [{ id: "keeper-daemon", label: "Keeper daemon" }, { id: "renewal", label: "Auto-renewal" }, { id: "dry-note", label: "Dry-note behaviour" }] },
   { id: "verify", label: "Verify", children: [{ id: "proof-gate", label: "Proof gate" }, { id: "viewing-keys", label: "Viewing keys" }, { id: "api-gate", label: "API gating" }] },
   { id: "creator", label: "Creator", children: [{ id: "rate-book", label: "Rate book" }, { id: "mrr", label: "Private MRR" }, { id: "cancel", label: "Cancel & revocation" }] },
-  { id: "contracts", label: "Contracts", children: [{ id: "addresses", label: "Deployed addresses" }, { id: "opcodes", label: "Opcodes" }, { id: "integration", label: "Integration guide" }] },
+  { id: "contracts", label: "Contracts", children: [{ id: "addresses", label: "Deployed addresses" }, { id: "verified-txs", label: "Verified Transactions" }, { id: "opcodes", label: "Opcodes" }, { id: "integration", label: "Integration guide" }] },
   { id: "reference", label: "Reference", children: [{ id: "faq", label: "FAQ" }, { id: "glossary", label: "Glossary" }, { id: "links", label: "Links" }] },
+  { id: "legal", label: "Legal Notice", children: [{ id: "protocol-disclaimer", label: "Protocol Disclaimer" }, { id: "non-custodial-terms", label: "Non-Custodial Terms" }] },
 ] as const;
 
 function Anchor({ id }: { id: string }) {
@@ -343,6 +344,48 @@ export default function DocsPage() {
               </table>
             </div>
 
+            <Anchor id="verified-txs" />
+            <H3>Verified Mainnet Transactions</H3>
+            <P>
+              All protocol operations have been executed and confirmed on Starknet Mainnet. You can inspect each transaction on Voyager or Starkscan:
+            </P>
+            <div className="mb-6 overflow-x-auto">
+              <table className="w-full min-w-[32rem] border-collapse text-left text-xs font-mono">
+                <thead>
+                  <tr className="bg-raised">
+                    <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">Action</th>
+                    <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">Tx Hash</th>
+                    <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">Status &amp; Verifiable Proof</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {[
+                    ["Class Declaration", "0x03400b396748d7a674ab1dae92e31a7d0fdea8aff84a2777c1377016556c7f41", "Class 0x3c78...28b declared on Mainnet"],
+                    ["Contract Deployment", "0x0249b376dd445fa87dcd03fcafcc09d820437dd72db8d1704ea2e1a4d3372795", "Helper deployed with STRK20 pool references"],
+                    ["First Live Subscription", "0x051dd8a3f97b1186d2220b784828a0387f3cc4e6842e46b454cd466151375055", "Subscribed to Vellum Studio (2 STRK / 30d)"],
+                    ["Subscription Renewal", "0x0662126a9d83307620d6c404cd55eddfb0d1424fab6730bed556a94c265deebd", "Autonomous 30-day renewal cycle"],
+                    ["STRK20 Multi-Call Note Transfer", "0x016c7695ad420a0172ab4827165529764d5647eee26906398f297f345b433d0e", "Private shielded note batch settlement"],
+                    ["ZK Preimage Cancellation", "0x015e0367eb7833e71e64d436c0052f2bd3ecbd72ab358de4c368c8024c5d1235", "Zero-knowledge Poseidon cancellation proof"],
+                  ].map(([action, tx, proof]) => (
+                    <tr key={tx} className="bg-base hover:bg-raised/40 transition-colors">
+                      <td className="px-4 py-2.5 font-semibold text-ink">{action}</td>
+                      <td className="px-4 py-2.5">
+                        <a
+                          href={`https://voyager.online/tx/${tx}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent underline hover:opacity-80 break-all"
+                        >
+                          {tx.slice(0, 14)}…{tx.slice(-8)} ↗
+                        </a>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted font-sans text-[11px]">{proof}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
             <Anchor id="opcodes" />
             <H3>Opcodes</H3>
             <div className="mt-4 grid gap-px bg-line md:grid-cols-3">
@@ -360,7 +403,7 @@ export default function DocsPage() {
             <Anchor id="integration" />
             <H3>Integration guide</H3>
             <CodeBlock title="Install">{`npm install starknet @starknet-io/types-js`}</CodeBlock>
-            <CodeBlock title="Read a subscription on-chain">{`import { RpcProvider, Contract } from "starknet";\n\nconst provider = new RpcProvider({\n  nodeUrl: "https://starknet-mainnet.infura.io/v3/YOUR_KEY"\n});\nconst helper = new Contract(KEEPR_ABI, HELPER_MAINNET, provider);\n\n// sub_id = Pedersen(address, salt) — computed client-side at subscribe time\nconst [active] = await helper.call("is_active", [sub_id]);\n// active === 1n  →  subscription is live`}</CodeBlock>
+            <CodeBlock title="Read a subscription on-chain">{`import { RpcProvider, Contract } from "starknet";\n\nconst provider = new RpcProvider({\n  nodeUrl: "https://starknet-mainnet.infura.io/v3/YOUR_KEY"\n});\nconst helper = new Contract(KEEPR_ABI, HELPER_MAINNET, provider);\n\n// sub_id = Poseidon(address, salt) — computed client-side at subscribe time\nconst [active] = await helper.call("is_active", [sub_id]);\n// active === 1n  →  subscription is live`}</CodeBlock>
             <CallOut type="info">
               Full ABI and Cairo source at{" "}
               <a href={REPO_URL} target="_blank" rel="noreferrer" className="underline decoration-accent underline-offset-2">github.com/Cryptojigi/keepr</a>
@@ -395,8 +438,8 @@ export default function DocsPage() {
             <dl className="mt-4 space-y-4">
               {[
                 ["Note", "A cryptographic commitment representing shielded STRK. Identified by its hash; consumed by a nullifier on spend."],
-                ["Sub ID", "Pedersen(address, salt). Stored on-chain as the channel identifier — not the raw wallet address."],
-                ["Auth Commit", "Pedersen(cancel_secret). Presenting the pre-image is required to cancel a channel."],
+                ["Sub ID", "Poseidon(address, salt). Stored on-chain as the blinded channel identifier — not the raw wallet address."],
+                ["Auth Commit", "Poseidon(cancel_secret). Presenting the pre-image is required to cancel a channel."],
                 ["Session Key", "A scoped delegation to the keeper daemon. Authorises only renewals at the exact tier rate."],
                 ["Viewing Key", "Decrypts note amounts for selective disclosure to auditors. Does not allow spending."],
                 ["Keeper", "The off-chain daemon that holds session keys and submits renewal transactions autonomously."],
@@ -427,6 +470,59 @@ export default function DocsPage() {
                 </li>
               ))}
             </ul>
+          </DocSection>
+
+          <Divider />
+
+          <DocSection id="legal">
+            <Anchor id="protocol-disclaimer" />
+            <H2>Legal Notice &amp; Protocol Disclaimer</H2>
+            <CallOut type="warn">
+              Please review this legal disclosure carefully before interacting with or integrating the Keepr protocol smart contracts or web application.
+            </CallOut>
+            <P>
+              Keepr is a non-custodial, decentralized, open-source software suite deployed on Starknet. It is designed to provide cryptographic infrastructure for private recurring digital payments and zero-knowledge service gating.
+            </P>
+
+            <Anchor id="non-custodial-terms" />
+            <H3>Terms of Use &amp; Non-Custodial Architecture</H3>
+            <div className="space-y-4 text-[1.0625rem] leading-relaxed text-ink">
+              <div className="border border-line bg-raised p-4">
+                <p className="font-mono text-xs uppercase tracking-wider font-bold text-accent">
+                  01 · Zero Custody of Funds
+                </p>
+                <p className="mt-1 text-sm text-ink/90">
+                  Keepr does not hold, manage, custody, or escrow any cryptocurrencies or tokens. All value transfers occur peer-to-peer directly between participant wallets, the STRK20 Privacy Pool, and recipient notes. The developers and contributors have no access to user funds or private keys.
+                </p>
+              </div>
+
+              <div className="border border-line bg-raised p-4">
+                <p className="font-mono text-xs uppercase tracking-wider font-bold text-accent">
+                  02 · Autonomous Infrastructure (Not a Financial Institution)
+                </p>
+                <p className="mt-1 text-sm text-ink/90">
+                  Keepr is an open-source technical protocol, not a bank, broker, money transmitter, custodian, or financial services provider. The interface and contracts do not provide investment, tax, financial, or legal advice. Users are solely responsible for compliance with the legal and tax regulations of their jurisdictions.
+                </p>
+              </div>
+
+              <div className="border border-line bg-raised p-4">
+                <p className="font-mono text-xs uppercase tracking-wider font-bold text-accent">
+                  03 · Independent Creators &amp; Gated Services
+                </p>
+                <p className="mt-1 text-sm text-ink/90">
+                  Channels, research dossiers, and lifetime passes hosted or linked via Keepr are operated by independent third-party creators. Keepr does not curate, endorse, verify, or guarantee the content, availability, or legality of any external gated services (including Discord, Telegram, or private APIs).
+                </p>
+              </div>
+
+              <div className="border border-line bg-raised p-4">
+                <p className="font-mono text-xs uppercase tracking-wider font-bold text-accent">
+                  04 · As-Is Software License &amp; Risk Acknowledgment
+                </p>
+                <p className="mt-1 text-sm text-ink/90">
+                  The protocol and interfaces are provided &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; without warranties of any kind under the MIT License. Users assume full responsibility for risks inherent in interacting with smart contracts, Starknet L2 sequencers, and cryptographic zero-knowledge systems.
+                </p>
+              </div>
+            </div>
           </DocSection>
 
         </article>

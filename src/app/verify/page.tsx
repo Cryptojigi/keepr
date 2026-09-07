@@ -386,7 +386,7 @@ async def is_subscription_active(sub_id_hex: str) -> bool:
           onClick={handleCopy}
           className="h-8 px-3 font-mono text-xs"
         >
-          {copied ? <Check className="mr-1.5 size-3.5 text-emerald-400" /> : <Copy className="mr-1.5 size-3.5" />}
+          {copied ? <Check className="mr-1.5 size-3.5 text-accent" /> : <Copy className="mr-1.5 size-3.5" />}
           {copied ? "Copied" : "Copy Snippet"}
         </Button>
       </div>

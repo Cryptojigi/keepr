@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Private, recurring subscription protocol for AI agents, research publications, and digital creators on Starknet.</strong><br />
-  Shield STRK tokens · Subscribe to channels · Auto-renew via keepers · Prove access with STARK proofs without wallet scanning.
+  Shield STRK tokens · Subscribe to channels · Auto-renew via keepers · Prove tier access with zero-knowledge proofs without revealing wallet addresses.
 </p>
 
 <p align="center">
@@ -18,28 +18,47 @@
 
 ---
 
-## Overview
+## What is Keepr?
 
-**Keepr** is a non-custodial, privacy-first subscription protocol built on [STRK20](https://strk20.starknet.io) (Starknet's unified privacy pool) and deployed live on **Starknet Mainnet**. Inspired by [RFP-12: Private Subscriptions](https://strk20.starknet.io/rfp/private-subscriptions), Keepr eliminates public address tracking, balance inspection, and identity leakage from recurring payments.
+**Keepr** is an autonomous, privacy-preserving subscription and software licensing protocol built on [STRK20](https://strk20.starknet.io) (Starknet's unified privacy pool) and deployed live on **Starknet Mainnet**. Inspired by [RFP-12: Private Subscriptions](https://strk20.starknet.io/rfp/private-subscriptions), Keepr eliminates public address tracking, balance inspection, and identity leakage from digital commerce.
 
-Subscriptions in Keepr are funded directly from anonymous shielded notes. An autonomous, off-chain **Keeper Daemon** manages periodic renewals via delegated session keys, and gates (Discord bots, Telegram channels, API gateways) verify active tier access through zero-knowledge challenges without ever scanning subscriber wallet addresses.
+In legacy web3 models, subscribing to a service permanently links your public wallet address and net worth to that creator. With Keepr:
+1. **Payers remain completely anonymous**: Payments originate from shielded pool notes. Subscriptions use blinded identities derived with Poseidon hashes (`sub_id = Poseidon(wallet, salt)`).
+2. **Creators receive direct, untraceable revenue**: 100% of payments route directly into creator notes or designated payout addresses with **0% protocol fees** on Mainnet v1.
+3. **Renewals happen autonomously**: An off-chain **Keeper Daemon** triggers recurring renewals via scoped session keys without exposing the payer's private keys.
+4. **Gates verify cryptographically**: External bots (Discord, Telegram) and API gateways verify access via zero-knowledge challenge proofs rather than balance or transaction history scanning.
 
 ---
 
-## Live Deployments & Network Details
+## Verified Mainnet Deployments & Transactions
 
-| Resource | Network | Address / URL | Explorer Link |
+Keepr is fully deployed and verified on **Starknet Mainnet**.
+
+### Deployed Contracts
+
+| Component | Network | Address / Hash | Explorer Links |
 |:---|:---|:---|:---|
-| **Live Web App** | Production | `https://keepr-eta.vercel.app` | [Open App ↗](https://keepr-eta.vercel.app) |
 | **KeeprSubscriptionHelper** | Starknet Mainnet | `0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1` | [Voyager ↗](https://voyager.online/contract/0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1) · [Starkscan ↗](https://starkscan.co/contract/0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1) |
-| **Helper Class Hash** | Starknet Mainnet | `0x3c78baa25d7dbf1240c33c74980d2071dff2e0b7f8971fd5822137eb2e7e28b` | [Class on Voyager ↗](https://voyager.online/class/0x3c78baa25d7dbf1240c33c74980d2071dff2e0b7f8971fd5822137eb2e7e28b) |
-| **STRK20 Privacy Pool** | Starknet Mainnet | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` | [Pool on Voyager ↗](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
-| **STRK Token** | Starknet Mainnet | `0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d` | [STRK on Voyager ↗](https://voyager.online/contract/0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d) |
-| **ETH Token** | Starknet Mainnet | `0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7` | [ETH on Voyager ↗](https://voyager.online/contract/0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7) |
+| **Helper Class Hash** | Starknet Mainnet | `0x3c78baa25d7dbf1240c33c74980d2071dff2e0b7f8971fd5822137eb2e7e28b` | [Voyager ↗](https://voyager.online/class/0x3c78baa25d7dbf1240c33c74980d2071dff2e0b7f8971fd5822137eb2e7e28b) |
+| **STRK20 Privacy Pool** | Starknet Mainnet | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` | [Voyager ↗](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
+| **STRK Token (ERC-20)** | Starknet Mainnet | `0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d` | [Voyager ↗](https://voyager.online/contract/0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d) |
+
+### Verified On-Chain Transactions (Live Execution Proofs)
+
+All protocol phases have been executed and confirmed on-chain on Starknet Mainnet:
+
+| # | Action | Transaction Hash | Status & Block | Purpose & Verifiable Data |
+|:---:|:---|:---|:---|:---|
+| 1 | **Class Declaration** | [`0x03400b...c7f41`](https://voyager.online/tx/0x03400b396748d7a674ab1dae92e31a7d0fdea8aff84a2777c1377016556c7f41) | `ACCEPTED_ON_L2` | Declares Cairo 2.18 contract class hash `0x3c78...28b` on Mainnet. |
+| 2 | **Contract Deployment** | [`0x0249b3...72795`](https://voyager.online/tx/0x0249b376dd445fa87dcd03fcafcc09d820437dd72db8d1704ea2e1a4d3372795) | `ACCEPTED_ON_L2` | Deploys `KeeprSubscriptionHelper` initialized with STRK20 pool references. |
+| 3 | **First Live Subscription** | [`0x051dd8...75055`](https://voyager.online/tx/0x051dd8a3f97b1186d2220b784828a0387f3cc4e6842e46b454cd466151375055) | `ACCEPTED_ON_L2`<br />(Block 14,111,530) | Subscribes to Vellum Studio (2 STRK / 30 days) via atomic note transfer. |
+| 4 | **Subscription Renewal** | [`0x066212...deebd`](https://voyager.online/tx/0x0662126a9d83307620d6c404cd55eddfb0d1424fab6730bed556a94c265deebd) | `ACCEPTED_ON_L2` | Recurring renewal transaction demonstrating active subscription lifecycle. |
+| 5 | **STRK20 Note Transfer Multi-Call** | [`0x016c76...33d0e`](https://voyager.online/tx/0x016c7695ad420a0172ab4827165529764d5647eee26906398f297f345b433d0e) | `ACCEPTED_ON_L2` | Multi-call batch executing private shielded note transfer and registration. |
+| 6 | **ZK Preimage Cancellation** | [`0x015e03...d1235`](https://voyager.online/tx/0x015e0367eb7833e71e64d436c0052f2bd3ecbd72ab358de4c368c8024c5d1235) | `ACCEPTED_ON_L2`<br />(Block 14,253,642) | Revokes subscription using zero-knowledge Poseidon preimage cancellation. |
 
 ---
 
-## Core Architecture & Cryptographic Primitives
+## Core Architecture
 
 ```
                             ┌─────────────────────────────────────────────────────────┐
@@ -76,99 +95,57 @@ Subscriptions in Keepr are funded directly from anonymous shielded notes. An aut
 ```
 
 ### 1. Blinded Subscriptions (`sub_id`)
-Subscribers never register their public wallet address on the contract. Instead, the client generates a 250-bit cryptographic salt $s$ locally and derives:
-$$\text{sub\_id} = \text{Poseidon}(\text{validateAddress}(\text{wallet}), s)$$
-The helper contract and indexers only store $\text{sub\_id}$, making it impossible to reconstruct or link subscriber wallets from on-chain data.
+Subscribers never submit their public Starknet address to the contract. Instead, the browser computes a deterministic Poseidon hash:
+$$\text{sub\_id} = \text{Poseidon}(\text{cleanAddress}(\text{wallet}), \text{felt}(\text{channelId}))$$
+The smart contract and indexers only record $\text{sub\_id}$. Even with full access to the blockchain ledger, third parties cannot identify the subscriber.
 
-### 2. Zero-Knowledge Cancel Preimages (`auth_commit` & `auth_preimage`)
-To revoke a subscription without proving identity:
-- During subscription, the client generates a secret $k$ and submits $\text{auth\_commit} = \text{Poseidon}(k)$.
-- To cancel, the client provides $k$ as `auth_preimage`. The Cairo contract verifies $\text{Poseidon}(k) == \text{auth\_commit}$ before marking the subscription inactive.
-- No third party or keeper can forge cancellation.
+### 2. Zero-Knowledge Cancel Preimages (`auth_commit`)
+Subscribers generate a secret key $k$ locally upon subscribing. The contract stores only the hash $\text{auth\_commit} = \text{Poseidon}(k)$. When canceling, the user presents $k$. The Cairo contract verifies $\text{Poseidon}(k) == \text{auth\_commit}$ before inactivating the subscription. No third party or keeper can forge cancellation.
 
-### 3. Atomic STRK20 Privacy Pool Multi-Call
-Subscribing executes an atomic 3-step action sequence via Ready X:
-1. **`withdraw`**: Moves required STRK from the user's shielded note to the Helper contract.
-2. **`transfer`**: Creates an `OPEN` note transfer addressed to the creator.
-3. **`invoke`**: Calls `KeeprSubscriptionHelper.privacy_invoke(op=0, ...)` to record state and credit the creator's note.
+### 3. Global Yellow-Pages & Zero-Database Subscriber Privacy
+Keepr decouples discovery from subscriber identity:
+- **Creators Broadcast Publicly**: Channels and lifetime access passes are stored in a public directory so users across any computer can explore and subscribe.
+- **Zero Database Records for Subscribers**: Subscribers NEVER write to a centralized database. Subscription state is verified directly from Starknet RPC nodes using the blinded `sub_id`.
 
-### 4. Real-Time Balance Synchronization
-- **Silent Transparent Polling**: Public STRK and ETH balances are retrieved via direct Starknet JSON-RPC (`balanceOf`), avoiding repetitive wallet approval popups.
-- **Single-Prompt Shielded Query**: Shielded pool balance is queried via `walletAccount.strk20Balances([STRK_TOKEN, ETH_TOKEN])` only on connect, post-transaction, or explicit user sync.
+### 4. Lifetime Access Passes & Licenses
+In addition to recurring monthly tiers, creators can issue permanent lifetime access passes and digital licenses. Buyers pay a one-time STRK fee, and the permanent access entitlement is stored in their subscriber vault.
 
 ---
 
-## Active Channels
+## Running the Autonomous Keeper Daemon
 
-Keepr features 4 production-grade channels spanning autonomous agents, intelligence, archival research, and algorithmic design:
+The Keeper Daemon monitors on-chain events and executes scheduled renewals for expiring channels:
 
-| Channel | Category | Description | Monthly Tiers |
-|:---|:---|:---|:---|
-| **Aegis Sentinel** (`aegis`) | Risk & Liquidity | Autonomous on-chain risk monitor & liquidation alerting agent for Starknet DeFi protocols. | • Pulse: 15 STRK<br />• Shield: 45 STRK<br />• Citadel: 120 STRK |
-| **Cipher Brief** (`cipher`) | Intelligence | Daily zero-knowledge intelligence, MEV tracking, dark-pool volume alerts, and governance audits. | • Dispatch: 20 STRK<br />• Wire: 60 STRK<br />• Terminal: 180 STRK |
-| **The Archive** (`archive`) | Deep Research | Curated decentralized storage of cryptographic papers, Cairo research, and zero-knowledge benchmarks. | • Reader: 10 STRK<br />• Scholar: 30 STRK<br />• Custodian: 90 STRK |
-| **Vellum Studio** (`vellum`) | Creative Studio | Generative algorithmic art atelier, SVG vector releases, and high-resolution digital print drops. | • Patron: 25 STRK<br />• Collector: 75 STRK<br />• Master: 200 STRK |
+```bash
+# 1. Navigate to keeper directory
+cd keeper
 
----
+# 2. Install dependencies
+npm install
 
-## Hybrid Architecture: Global Directory & Zero-Database Subscriber Privacy
+# 3. Configure environment variables
+# Copy keeper/.env.example to keeper/.env:
+# STARKNET_RPC_URL=https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY
+# KEEPER_PRIVATE_KEY=0x...
+# KEEPER_ACCOUNT_ADDRESS=0x...
 
-Keepr solves the cross-device discovery problem while strictly preserving 100% subscriber privacy:
+# 4. Run keeper in evaluation mode (one-shot check)
+npm run check
 
-```
-┌────────────────────────────────────────────────────────┐     ┌────────────────────────────────────────────────────────┐
-│               CREATOR BROADCAST LAYER                  │     │                SUBSCRIBER PRIVACY LAYER                │
-│             (Global Public Directory)                  │     │                 (Pure Starknet State)                  │
-├────────────────────────────────────────────────────────┤     ├────────────────────────────────────────────────────────┤
-│ • Public yellow-pages directory via Supabase           │     │ • ZERO database records created for users              │
-│ • Stores channel handles, rate books & lifetime passes │     │ • Deterministic Poseidon salt: hash(wallet, channel)   │
-│ • Broadcast channels across any device worldwide       │     │ • Subscriptions discovered directly via RPC:           │
-│ • Graceful fallback: local store if registry offline   │     │   is_active(sub_id) on Starknet Mainnet                │
-└────────────────────────────────────────────────────────┘     └────────────────────────────────────────────────────────┘
+# 5. Run keeper daemon in continuous background loop (60s intervals)
+npm run start
 ```
 
-1. **Global Yellow-Pages Directory (Supabase)**: When creators launch channels or issue lifetime passes, they broadcast metadata publicly so subscribers on any device or computer can explore them.
-2. **Pure On-Chain Subscriber Sync**: Subscribers NEVER write to Supabase or any central server. Active subscriptions are discovered directly from Starknet RPC using deterministic Poseidon salts:
-   $$\text{salt} = \text{Poseidon}(\text{cleanAddress}(\text{wallet}), \text{felt}(\text{channelId}))$$
-3. **Mainnet v1 0% Protocol Fee Policy**: 100% of STRK token transfers route directly into the creator's payout note. Keepr levies 0% take-rate on Mainnet v1.
-4. **Lifetime Access Passes & Perpetual Licenses**: Creators can vend single-license access keys and permanent passes with one-time STRK payments.
-
 ---
 
-## Developer SDK & Zero-Knowledge Gating (`/verify`)
-
-Keepr provides native 5-line integrations for Telegram bots, Discord role assigners, and API gateways:
-
-```typescript
-import { RpcProvider } from "starknet";
-
-const HELPER_ADDRESS = "0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1";
-const provider = new RpcProvider({ nodeUrl: "https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY" });
-
-// Pure zero-knowledge verification: zero database knowledge needed
-export async function isSubscriptionActive(subId: string): Promise<boolean> {
-  const res = await provider.callContract({
-    contractAddress: HELPER_ADDRESS,
-    entrypoint: "is_active",
-    calldata: [subId],
-  });
-  return res.result[0] === "0x1";
-}
-```
-
-Interactive snippets in **TypeScript**, **Python** (`starknet-py`), and raw **cURL** / JSON-RPC are built right into the [`/verify`](https://keepr-eta.vercel.app/verify) portal.
-
----
-
-## Quick Start
+## Quick Start (Web Application)
 
 ### Prerequisites
 - Node.js 20+
 - Ready Wallet ([Chrome Web Store](https://chromewebstore.google.com/detail/ready-wallet/hkeaflfmepelbhgkhkbfmfbkkblhcfkn)) or Starknet-compatible wallet
-- Starknet RPC provider URL (Alchemy, Nethermind Juno, or Blast API)
-- (Optional) Supabase project for the public creator yellow pages
+- Starknet Mainnet RPC endpoint (Alchemy, Nethermind Juno, Blast API)
 
-### Installation & Local Setup
+### Local Setup
 
 ```bash
 # 1. Clone repository
@@ -180,87 +157,59 @@ npm install
 
 # 3. Configure environment
 cp .env.example .env.local
-
-# Edit .env.local:
-# NEXT_PUBLIC_PROVIDER_URL=your_alchemy_key_here
-# NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_publishable_anon_key
+# Add your RPC endpoint and Supabase keys in .env.local
 
 # 4. Start local development server
 npm run dev
 
-# 5. Open browser
-# Visit http://localhost:3000
-```
-
-### Production Build & Linting
-
-```bash
-# Validate production bundle
-npm run build
-
-# Run lint checks
-npm run lint
+# 5. Open in browser
+# http://localhost:3000
 ```
 
 ---
 
-## Project Structure
+## Developer SDK & Verification (`/verify`)
 
+Integrate gated access into Discord bots, Telegram channels, or API servers in 5 lines of code:
+
+```typescript
+import { RpcProvider } from "starknet";
+
+const HELPER_ADDRESS = "0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1";
+const provider = new RpcProvider({ nodeUrl: "https://starknet-mainnet.g.alchemy.com/v2/YOUR_KEY" });
+
+// Pure zero-knowledge verification: zero database queries needed
+export async function isSubscriptionActive(subId: string): Promise<boolean> {
+  const res = await provider.callContract({
+    contractAddress: HELPER_ADDRESS,
+    entrypoint: "is_active",
+    calldata: [subId],
+  });
+  return res.result[0] === "0x1";
+}
 ```
-keepr/
-├── cairo/                          # Cairo 2.18 Smart Contracts (Deployed on Mainnet)
-│   ├── src/
-│   │   └── lib.cairo               # KeeprSubscriptionHelper contract & interfaces
-│   ├── address.md                  # Mainnet deployment hashes & verified txs
-│   └── Scarb.toml                  # Scarb package configuration
-├── keeper/                         # Autonomous 24/7 Keeper Renewal Daemon
-│   ├── src/
-│   │   ├── keeper.ts               # Event discovery & evaluation engine
-│   │   ├── index.ts                # Daemon CLI entrypoint
-│   │   └── types.ts                # Keeper configuration and decision log types
-│   ├── package.json
-│   └── README.md
-├── src/
-│   ├── app/
-│   │   ├── creator/page.tsx        # Creator studio, live analytics, rate books & Supabase sync
-│   │   ├── dashboard/page.tsx      # Subscriber vault, pure on-chain scan & keeper monitor
-│   │   ├── docs/page.tsx           # Full 8-section protocol documentation & guide
-│   │   ├── subscribe/page.tsx      # Global explorer, tier picker, lifetime passes & checkout
-│   │   ├── verify/page.tsx         # Developer SDK, bot snippets & zero-knowledge gating
-│   │   ├── globals.css             # Theme tokens, font variables & brutalist styling
-│   │   ├── layout.tsx              # Root layout, typography imports & toast provider
-│   │   └── page.tsx                # Protocol landing page with animated hero canvas
-│   ├── components/
-│   │   ├── buy-vended-item-modal.tsx    # On-chain checkout modal for lifetime passes
-│   │   ├── create-vended-item-modal.tsx # Creator modal to issue lifetime passes
-│   │   ├── create-channel-modal.tsx     # Channel creation modal with Supabase broadcast
-│   │   ├── hero-canvas.tsx              # GPU-accelerated organic blob canvas animation
-│   │   ├── vault-strip.tsx              # Real-time balances, auto-renew status & quick shield chips
-│   │   └── ...
-│   ├── lib/
-│   │   ├── keepr/
-│   │   │   ├── constants.ts             # Contract addresses, token hashes & pool references
-│   │   │   ├── data.ts                  # 4 showcase channels, tier rate books & keeper feed
-│   │   │   ├── errors.ts                # Actionable Starknet & Ready X error translator
-│   │   │   ├── format.ts                # Currency, countdown, serial & date formatters
-│   │   │   ├── onchain.ts               # Poseidon hashing, RPC callers & deterministic salts
-│   │   │   ├── share.ts                 # Self-describing cross-device channel URLs
-│   │   │   ├── store.ts                 # Zustand store with encrypted local persistence
-│   │   │   └── types.ts                 # TypeScript domain models
-│   │   └── supabase/
-│   │       ├── client.ts                # Safe singleton client with offline fallback
-│   │       └── registry.ts              # Public yellow-pages directory APIs
-├── strk20.json                          # Hackathon submission metadata & transaction hashes
-└── README.md
-```
+
+Interactive snippets in **TypeScript**, **Python** (`starknet-py`), and **cURL** / JSON-RPC are available at [`/verify`](https://keepr-eta.vercel.app/verify).
 
 ---
 
-## Hackathon Submission & Deliverables
+## Legal Notice & Protocol Disclaimer
 
-- **Track**: STRK20 Private Sprint Hackathon (RFP-12: Private Subscriptions)
-- **Submission Metadata**: [`strk20.json`](./strk20.json)
-- **Deployed Helper**: [`0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1`](https://voyager.online/contract/0x02f20862a7c41ac5103efc0d0dda7afcfe60f5b861ccaab9d08937526f727fa1)
-- **Live Demo URL**: [https://keepr-eta.vercel.app](https://keepr-eta.vercel.app)
-- **License**: [MIT](./LICENSE)
+> [!IMPORTANT]
+> **PLEASE READ THIS NOTICE CAREFULLY BEFORE USING OR INTERACTING WITH THE KEEPR PROTOCOL.**
+
+1. **Non-Custodial Cryptographic Infrastructure**: Keepr is an autonomous, open-source software protocol composed of smart contracts on the Starknet network and client-side interfaces. At no point does Keepr, its developers, contributors, or affiliated entities hold, custody, manage, escrow, or control user funds, private keys, or digital assets. All transactions settle peer-to-peer directly between user wallets, the STRK20 Privacy Pool, and creator payout addresses.
+
+2. **No Financial or Intermediary Services**: Keepr is not a bank, broker, money transmitter, custodian, payment service provider, or financial institution. The software does not provide financial, legal, investment, or tax advice. Users are solely responsible for managing their private keys, session keys, and cancellation secrets, and for ensuring their transactions comply with applicable local laws, regulations, and tax reporting requirements in their jurisdiction.
+
+3. **Autonomous and Experimental Technology**: The protocol operates on Starknet Mainnet and utilizes cryptographic privacy pools and zero-knowledge primitives. While contracts are verified on-chain, all blockchain-based software carries inherent technical risks, including potential smart contract vulnerabilities, network congestion, changes to underlying L2 protocols, and third-party RPC downtimes. The software is provided **"AS IS" and "AS AVAILABLE"**, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+4. **Independent Creator Services**: Keepr acts strictly as a decentralized payment and verification rail. Content creators, publishers, and AI agents operating channels or vending lifetime passes on Keepr are completely independent third parties. Keepr does not endorse, curate, moderate, audit, or assume liability for the accuracy, legality, or availability of any third-party services, gated URLs, external content, or digital deliverables provided by creators.
+
+5. **Assumption of Risk**: By connecting a wallet, shielding assets, subscribing to a channel, or vending access passes on Keepr, you acknowledge and agree that you understand the mechanics of Starknet, zero-knowledge proofs, and cryptographic notes, and you accept full responsibility for any risks, losses, or costs associated with your use of the protocol.
+
+---
+
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.
